@@ -1,7 +1,6 @@
 package neuron
 
 import (
-	"fmt"
 	"log"
 	"math"
 )
@@ -103,12 +102,10 @@ type Genetic struct {
 
 // Operate on a list of signals
 func (g *Genetic) Operate(sigs []SignalType) SignalType {
-	fmt.Println("Operating")
 	finalSignal := g.op.operate(sigs[0], sigs[1])
 	for i := 2; i < len(sigs); i++ {
 		finalSignal = g.op.operate(finalSignal, sigs[i])
 	}
-	fmt.Println("Done with op")
 	return finalSignal
 }
 
@@ -124,6 +121,7 @@ func Grow(snippet, numNeurons int) *Genetic {
 	}
 	g.AbstractNeuron.Neuron = &g
 
+	// Not sure if this should be -numOps or -op
 	snipLeft := snippet - numOps
 	for snipLeft > 0 {
 		nIndex := snipLeft % numNeurons

@@ -46,10 +46,10 @@ func TestOverflow(t *testing.T) {
 }
 
 func TestGeneticOperate(t *testing.T) {
-	if got := Grow(0, 1).Operate([]uint8{1, 2}); got != 3 {
+	if got := Grow(0, 1).Operate([]SignalType{1, 2}); got != 3 {
 		t.Errorf("Want 3, got %d", got)
 	}
-	if got := Grow(0, 1).Operate([]uint8{1, 2, 3, 4, 5}); got != 15 {
+	if got := Grow(0, 1).Operate([]SignalType{1, 2, 3, 4, 5}); got != 15 {
 		t.Errorf("Want 15, got %d", got)
 	}
 }
@@ -74,7 +74,7 @@ func TestSignalingPathway(t *testing.T) {
 	g := Grow(20, 3)
 	sigChan := make(chan Signal)
 
-	go g.Fire(sigChan, []uint8{1, 2, 3, 4, 5})
+	go g.Fire(sigChan, []SignalType{1, 2, 3, 4, 5})
 	sig := <-sigChan
 
 	if !reflect.DeepEqual(sig.nIndicies, g.downstream) {
