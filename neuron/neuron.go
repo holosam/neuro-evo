@@ -25,6 +25,7 @@ type AbstractNeuron struct {
 	pendingInputs []SignalType
 
 	downstream []*Neuron
+	// Do I disappear?
 }
 
 // Implement signal and maybe fire here
