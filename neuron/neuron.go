@@ -6,7 +6,7 @@ import (
 )
 
 // SignalType is the value held in a Neuron
-type SignalType = int64
+type SignalType = uint8
 
 // Neuron docs
 type Neuron interface {
@@ -25,7 +25,6 @@ type AbstractNeuron struct {
 	pendingInputs []SignalType
 
 	downstream []*Neuron
-	// Do I disappear?
 }
 
 // Implement signal and maybe fire here
@@ -65,7 +64,8 @@ func (op OperatorType) operate(a, b SignalType) SignalType {
 	case IFF:
 		return ^(a ^ b)
 	case TRUTH:
-		return math.MaxInt64
+		// Note this will need to be changed if SignalType does.
+		return math.MaxUint8
 	case FALSIFY:
 		return 0
 	default:
