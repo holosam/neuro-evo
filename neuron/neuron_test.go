@@ -2,8 +2,8 @@ package neuron
 
 import (
 	"math"
+	"reflect"
 	"testing"
-	"time"
 )
 
 func TestOperators(t *testing.T) {
@@ -45,36 +45,42 @@ func TestOverflow(t *testing.T) {
 	}
 }
 
-func CreateGenetic(op OperatorType) *Genetic {
-	genetic := Genetic{
-		op:             op,
-		AbstractNeuron: AbstractNeuron{},
+func TestGeneticOperate(t *testing.T) {
+	if got := Grow(0, 1).Operate([]uint8{1, 2}); got != 3 {
+		t.Errorf("Want 3, got %d", got)
 	}
-	genetic.AbstractNeuron.Neuron = &genetic
-	return &genetic
+	if got := Grow(0, 1).Operate([]uint8{1, 2, 3, 4, 5}); got != 15 {
+		t.Errorf("Want 15, got %d", got)
+	}
+}
+
+func TestGrowingGenetic(t *testing.T) {
+	g := Grow(27, 7)
+	if g.op != IFF {
+		t.Errorf("Want IFF, got %v", g.op)
+	}
+
+	// 17 % 7 = *3*, 17 - (3+1) = 13, 13 % 7 = *6*, 13 - (6+1) = 6
+	want := make(IntSet)
+	want[3] = member
+	want[6] = member
+
+	if !reflect.DeepEqual(want, g.downstream) {
+		t.Errorf("Want %v, got %v", want, g.downstream)
+	}
 }
 
 func TestSignalingPathway(t *testing.T) {
-	upstream := CreateGenetic(ADD)
-	downstream := CreateGenetic(ADD)
+	g := Grow(20, 3)
+	sigChan := make(chan Signal)
 
-	// Is this adding a reference or a copy?
-	upstream.downstream = append(upstream.downstream, downstream)
+	go g.Fire(sigChan, []uint8{1, 2, 3, 4, 5})
+	sig := <-sigChan
 
-	upstream.Signal(5)
-	upstream.MaybeFire()
-	time.Sleep(time.Second)
-	if len(downstream.pendingSignals) > 0 {
-		t.Errorf("Neuron shouldn't have fired with 1 signal.")
+	if !reflect.DeepEqual(sig.nIndicies, g.downstream) {
+		t.Errorf("Want %v, got %v", sig.nIndicies, g.downstream)
 	}
-
-	upstream.Signal(7)
-	upstream.MaybeFire()
-	time.Sleep(time.Second)
-	if len(downstream.pendingSignals) != 1 {
-		t.Errorf("Neuron should have fired.")
-	}
-	if downstream.pendingSignals[0] != 12 {
-		t.Errorf("Got wrong val.")
+	if sig.val != 15 {
+		t.Errorf("Want 15, got %d", sig.val)
 	}
 }

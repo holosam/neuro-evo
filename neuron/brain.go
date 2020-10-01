@@ -4,6 +4,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const dnaSep = "|"
@@ -14,13 +15,18 @@ type Brain struct {
 
 	neurons []Neuron
 
-	signals chan Signal
+	sigChan chan Signal
+
+	mu sync.Mutex
+
+	pendingSignals map[int][]SignalType
 }
 
 func Flourish(dna string) *Brain {
 	b := Brain{
-		signals: make(chan Signal),
-		DNA:     dna,
+		sigChan:        make(chan Signal),
+		DNA:            dna,
+		pendingSignals: make(map[int][]SignalType),
 	}
 
 	snippets := strings.Split(dna, dnaSep)
@@ -36,9 +42,20 @@ func Flourish(dna string) *Brain {
 }
 
 func (b *Brain) StepFunction() {
+	firingNeurons := 0
+	for nIndex, sigs := range b.pendingSignals {
+		if len(sigs) >= 2 {
+			go b.neurons[nIndex].Fire(b.sigChan, sigs)
+			firingNeurons++
+		}
+	}
+	b.pendingSignals = make(map[int][]SignalType)
+
+	for i := 0; i < firingNeurons; i++ {
+		signal := <-b.sigChan
+		for nIndex := range signal.nIndicies {
+			b.pendingSignals[nIndex] = append(b.pendingSignals[nIndex], signal.val)
+		}
+	}
 
 }
-
-// Or, when the Brain does a step firing, all of the neurons use a channel to
-// pass a signal and an index, so they don't need to keep references to other
-// neurons, just holding numbers
