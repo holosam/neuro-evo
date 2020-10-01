@@ -3,6 +3,7 @@ package neuron
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func TestOperators(t *testing.T) {
@@ -35,5 +36,38 @@ func TestOperators(t *testing.T) {
 	}
 	if got := FALSIFY.operate(3, 7); got != 0 {
 		t.Errorf("Got wrong FALSIFY value: %v", got)
+	}
+}
+
+func CreateGenetic(op OperatorType) *Genetic {
+	genetic := Genetic{
+		op:             op,
+		AbstractNeuron: AbstractNeuron{},
+	}
+	genetic.AbstractNeuron.Neuron = &genetic
+	return &genetic
+}
+
+func TestSignalingPathway(t *testing.T) {
+	upstream := CreateGenetic(ADD)
+	downstream := CreateGenetic(ADD)
+
+	upstream.downstream = append(upstream.downstream, downstream)
+
+	upstream.Signal(5)
+	upstream.MaybeFire()
+	time.Sleep(time.Second)
+	if len(downstream.pendingSignals) > 0 {
+		t.Errorf("Neuron shouldn't have fired with 1 signal.")
+	}
+
+	upstream.Signal(7)
+	upstream.MaybeFire()
+	time.Sleep(time.Second)
+	if len(downstream.pendingSignals) != 1 {
+		t.Errorf("Neuron should have fired.")
+	}
+	if downstream.pendingSignals[0] != 12 {
+		t.Errorf("Got wrong val.")
 	}
 }
