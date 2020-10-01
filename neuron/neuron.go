@@ -24,7 +24,7 @@ type Neuron interface {
 type AbstractNeuron struct {
 	pendingInputs []SignalType
 
-	downstream []Neuron
+	downstream []*Neuron
 }
 
 // Implement signal and maybe fire here
