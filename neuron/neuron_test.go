@@ -39,6 +39,12 @@ func TestOperators(t *testing.T) {
 	}
 }
 
+func TestOverflow(t *testing.T) {
+	if got := MULTIPLY.operate(20, 20); got != (20*20)-256 {
+		t.Errorf("Got wrong MULTIPLY value: %v", got)
+	}
+}
+
 func CreateGenetic(op OperatorType) *Genetic {
 	genetic := Genetic{
 		op:             op,
@@ -52,6 +58,7 @@ func TestSignalingPathway(t *testing.T) {
 	upstream := CreateGenetic(ADD)
 	downstream := CreateGenetic(ADD)
 
+	// Is this adding a reference or a copy?
 	upstream.downstream = append(upstream.downstream, downstream)
 
 	upstream.Signal(5)

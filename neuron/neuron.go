@@ -9,12 +9,17 @@ import (
 // SignalType is the value held in a Neuron
 type SignalType = uint8
 
+type Signal struct {
+	val    SignalType
+	nIndex int
+}
+
 // Neuron docs
 type Neuron interface {
 	// Trigger downstream
 	MaybeFire()
 
-	// Copy relevant data into a string to be put into DNA
+	// Encode relevant data into a string to be put into DNA
 	// Encode() string
 
 	// Receive an input
@@ -30,6 +35,8 @@ type AbstractNeuron struct {
 
 	// Initialized on creaton based on DNA
 	downstream []Neuron
+
+	downstream2 []int
 
 	mu sync.RWMutex
 
@@ -51,15 +58,17 @@ func (a *AbstractNeuron) MaybeFire() {
 		return
 	}
 	finalSignal := a.Operate()
+	a.mu.RUnlock()
 
 	for _, n := range a.downstream {
+		// Remember the pattern should be the outside calling it with a context,
+		// not launching a goroutine in the function
 		go func(n Neuron, s SignalType) {
 			n.Signal(s)
 		}(n, finalSignal)
 	}
 
-	a.mu.RUnlock()
-	// Wait for all the signalling to be done here?
+	// Wait for all the signaling to be done here?
 	// Would need to use channels probably
 }
 
@@ -67,17 +76,19 @@ func (a *AbstractNeuron) MaybeFire() {
 type OperatorType int
 
 const (
-	ADD      OperatorType = 0
-	MULTIPLY OperatorType = 1
-	AND      OperatorType = 2
-	NAND     OperatorType = 3
-	OR       OperatorType = 4
-	NOR      OperatorType = 5
-	XOR      OperatorType = 6
-	IFF      OperatorType = 7
-	TRUTH    OperatorType = 8
-	FALSIFY  OperatorType = 9
+	ADD OperatorType = iota
+	MULTIPLY
+	AND
+	NAND
+	OR
+	NOR
+	XOR
+	IFF
+	TRUTH
+	FALSIFY
 )
+
+const numOps = 10
 
 func (op OperatorType) operate(a, b SignalType) SignalType {
 	switch op {
@@ -108,6 +119,11 @@ func (op OperatorType) operate(a, b SignalType) SignalType {
 	}
 }
 
+func interpretOp(x int) OperatorType {
+	ops := [...]OperatorType{ADD, MULTIPLY, AND, NAND, OR, NOR, XOR, IFF, TRUTH, FALSIFY}
+	return ops[x]
+}
+
 // Genetic implements Neuron
 type Genetic struct {
 	AbstractNeuron
@@ -125,5 +141,19 @@ func (g *Genetic) Operate() SignalType {
 	return finalSignal
 }
 
-// func (g *Genetic) MaybeFire() {
-// }
+// Grow creates a GeneticNeuron from a snippet of DNA
+func Grow(snippet, numNeurons int) *Genetic {
+	op := interpretOp(snippet % numOps)
+
+	genetic := Genetic{
+		op:             op,
+		AbstractNeuron: AbstractNeuron{},
+	}
+	genetic.AbstractNeuron.Neuron = &genetic
+
+	for nIndex := snippet - numOps; nIndex > 0; nIndex %= numNeurons {
+		genetic.downstream2 = append(genetic.downstream2, nIndex)
+	}
+
+	return &genetic
+}
