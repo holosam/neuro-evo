@@ -1,9 +1,14 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // import "hackathon/sam/evolve/neuron"
 
 func main() {
-	fmt.Println("#1")
+	var andValue int64
+	andValue = 5 & 4 & 15
+	fmt.Println(strconv.FormatInt(andValue, 2))
 }
