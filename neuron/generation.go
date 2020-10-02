@@ -8,7 +8,23 @@ import (
 type Generation struct {
 	codes []DNA
 
+	// Not supposed to use slices of pointers
+	// brains []Brain
+	brains map[int]*Brain
+
 	rnd *rand.Rand // rand.NewSource(time.Now().UnixNano())
+}
+
+func (g *Generation) Generate(codes []DNA) {
+	for codeID, code := range codes {
+		g.brains[codeID] = Flourish(&code)
+	}
+}
+
+func (g *Generation) FireBrains() {
+	for _, brain := range g.brains {
+		brain.StepFunction()
+	}
 }
 
 func (g *Generation) MutateDNA(dnaIndex int) {

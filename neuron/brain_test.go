@@ -14,12 +14,16 @@ func TestBrainStep(t *testing.T) {
 	for _, sig := range sigs {
 		b.pendingSignals[0] = append(b.pendingSignals[0], sig)
 	}
-	b.StepFunction()
+	moves := b.StepFunction()
 
-	want := make(map[int][]SignalType, 2)
+	if got := len(moves); got != 0 {
+		t.Errorf("Want 0, got %d", got)
+	}
+
+	want := make(map[int][]SignalType, 1)
 	want[1] = append(want[1], 15)
 
 	if !reflect.DeepEqual(want, b.pendingSignals) {
-		t.Errorf("Want equal, got %v and %v", want, b.pendingSignals)
+		t.Errorf("Want %v, got %v", want, b.pendingSignals)
 	}
 }

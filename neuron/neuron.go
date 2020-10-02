@@ -15,8 +15,8 @@ type IntSet = map[int]void
 var member void
 
 type Signal struct {
-	val       SignalType
-	nIndicies IntSet
+	val      SignalType
+	synapses IntSet
 }
 
 // OperatorType for genetic neurons
@@ -86,7 +86,7 @@ func (s *Snippet) RemoveSynapse(id int) {
 	delete(s.Synapses, id)
 }
 
-func MakeSnippet(op OperatorType, synapes ...int) Snippet {
+func MakeSnippet(op OperatorType, synapes ...int) *Snippet {
 	s := Snippet{
 		Op:       op,
 		Synapses: make(IntSet),
@@ -94,17 +94,24 @@ func MakeSnippet(op OperatorType, synapes ...int) Snippet {
 	for _, synapse := range synapes {
 		s.AddSynapse(synapse)
 	}
-	return s
+	return &s
 }
 
 type Neuron struct {
-	snip Snippet
+	snip *Snippet
+
+	sigChan chan Signal
+
+	isVision bool
 }
 
 // Fire fires the neuron if there are at least 2 inputs.
-func (n Neuron) Fire(sigChan chan Signal, sigs []SignalType) {
-	// Will need to question this assumption for vision neurons
-	if len(sigs) < 2 {
+func (n *Neuron) Fire(sigChan chan Signal, sigs []SignalType) {
+	// Vision neurons only need 1 input signal, others need 2.
+	if len(sigs) == 0 || (len(sigs) == 1 && !n.isVision) {
+		// Send an empty struct on the channel to alert the caller
+		// that there is nothing to do.
+		sigChan <- Signal{}
 		return
 	}
 
@@ -114,7 +121,7 @@ func (n Neuron) Fire(sigChan chan Signal, sigs []SignalType) {
 	}
 
 	sigChan <- Signal{
-		val:       signal,
-		nIndicies: n.snip.Synapses,
+		val:      signal,
+		synapses: n.snip.Synapses,
 	}
 }

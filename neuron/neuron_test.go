@@ -55,8 +55,8 @@ func TestSignalingPathway(t *testing.T) {
 	go n.Fire(sigChan, []SignalType{1, 2, 3, 4, 5})
 	sig := <-sigChan
 
-	if !reflect.DeepEqual(sig.nIndicies, n.snip.Synapses) {
-		t.Errorf("Want %v, got %v", sig.nIndicies, n.snip.Synapses)
+	if !reflect.DeepEqual(sig.synapses, n.snip.Synapses) {
+		t.Errorf("Want %v, got %v", sig.synapses, n.snip.Synapses)
 	}
 	if sig.val != 15 {
 		t.Errorf("Want 15, got %d", sig.val)
