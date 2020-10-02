@@ -76,7 +76,6 @@ func Flourish(dna *DNA) *Brain {
 	for snipID, snip := range dna.snips {
 		selectedChan := b.sigChan
 		if _, exists := dna.motorIDs[snipID]; exists {
-			fmt.Printf("Does this happen??? id=%d\n", snipID)
 			selectedChan = b.motorChan
 		}
 
@@ -118,15 +117,16 @@ func (b *Brain) StepFunction() []SignalType {
 		case signal := <-b.sigChan:
 			fmt.Printf("Channel normal signal %d\n", signal.val)
 			// May send an empty signal if the action potential threshold isn't met.
-			if len(signal.synapses) > 0 {
+			if signal.active {
 				for neuronID := range signal.synapses {
 					b.addPendingSignal(neuronID, signal.val)
 				}
 			}
 		case signal := <-b.motorChan:
 			fmt.Printf("Channel motor signal %d\n", signal.val)
-			// Don't have to check if synapses are empty, just matters if it fired.
-			movements = append(movements, signal.val)
+			if signal.active {
+				movements = append(movements, signal.val)
+			}
 		}
 	}
 	return movements

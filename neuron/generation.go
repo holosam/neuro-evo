@@ -1,5 +1,7 @@
 package neuron
 
+import "fmt"
+
 // AccuracyFunc scores the output moves. Closer to 0 is better.
 type AccuracyFunc func(moves []SignalType) int64
 
@@ -9,11 +11,11 @@ type BrainResult struct {
 	steps int
 }
 
-func RunGeneration(codes map[int]*DNA) map[int]*BrainResult {
+func RunGeneration(codes map[int]*DNA, envInputs []SignalType) map[int]*BrainResult {
 	// Simulate all brains in separate goroutines.
 	resChan := make(chan BrainResult)
 	for id, code := range codes {
-		go FireBrain(id, code, resChan)
+		go FireBrain(id, code, envInputs, resChan)
 	}
 
 	// Wait for all the scores to come in.
@@ -26,15 +28,17 @@ func RunGeneration(codes map[int]*DNA) map[int]*BrainResult {
 	return results
 }
 
-func FireBrain(id int, dna *DNA, scoreChan chan BrainResult) {
+func FireBrain(id int, dna *DNA, envInputs []SignalType, resChan chan BrainResult) {
 	brain := Flourish(dna)
+
+	// At some point it would be good to add support for
+	// multiple rounds of seeing. Maybe [][]SignalType
+	brain.SeeInput(envInputs...)
 	for step := 0; step < maxStepsPerGen; step++ {
 		moves := brain.StepFunction()
 		if len(moves) > 0 {
-			// score := 1000000 * accuracy(moves)
-			// score += 1000 * int64(step)
-			// score += int64(dnaComplexity(dna))
-			scoreChan <- BrainResult{
+			fmt.Printf("Stopping id=%d with moves=%v\n", id, moves)
+			resChan <- BrainResult{
 				id:    id,
 				moves: moves,
 				steps: step,
@@ -43,7 +47,7 @@ func FireBrain(id int, dna *DNA, scoreChan chan BrainResult) {
 		}
 	}
 
-	scoreChan <- BrainResult{
+	resChan <- BrainResult{
 		id:    id,
 		moves: make([]SignalType, 0),
 		steps: maxStepsPerGen,

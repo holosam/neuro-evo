@@ -5,6 +5,21 @@ import (
 	"testing"
 )
 
+// Two vision neurons pointing at a motor neuron.
+func SimpleTestDNA() *DNA {
+	d := NewDNA()
+	d.AddSnippet(0).AddSynapse(2)
+	d.AddVisionId(0)
+
+	d.AddSnippet(0).AddSynapse(2)
+	d.AddVisionId(1)
+
+	d.AddSnippet(0)
+	d.AddMotorId(2)
+
+	return d
+}
+
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
 	d.AddSnippet(0).AddSynapse(1)
@@ -30,19 +45,7 @@ func TestBrainStep(t *testing.T) {
 }
 
 func TestEyesight(t *testing.T) {
-	// Two vision neurons pointing at a motor neuron.
-	d := NewDNA()
-	d.AddSnippet(0).AddSynapse(2)
-	d.AddVisionId(0)
-
-	d.AddSnippet(0).AddSynapse(2)
-	d.AddVisionId(1)
-
-	d.AddSnippet(0)
-	d.AddMotorId(2)
-
-	b := Flourish(d)
-
+	b := Flourish(SimpleTestDNA())
 	b.SeeInput(1)
 
 	// First step fires the vision neurons and pends for the motor neuron.

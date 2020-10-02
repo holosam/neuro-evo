@@ -73,8 +73,8 @@ func TestVision(t *testing.T) {
 
 	go n.Fire([]SignalType{})
 	sig := <-sigChan
-	if got := sig.synapses; len(got) != 0 {
-		t.Errorf("Want empty signal, got %v", got)
+	if got := sig.active; got {
+		t.Errorf("Want inactive signal, got active=%v", got)
 	}
 
 	go n.Fire([]SignalType{1})
@@ -86,7 +86,7 @@ func TestVision(t *testing.T) {
 	n.isVision = false
 	go n.Fire([]SignalType{1})
 	sig = <-sigChan
-	if got := sig.synapses; len(got) != 0 {
-		t.Errorf("Want empty signal, got %v", got)
+	if got := sig.active; got {
+		t.Errorf("Want inactive signal, got active=%v", got)
 	}
 }

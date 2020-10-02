@@ -15,6 +15,7 @@ type IntSet = map[int]void
 var member void
 
 type Signal struct {
+	active   bool
 	val      SignalType
 	synapses IntSet
 }
@@ -121,6 +122,7 @@ func (n *Neuron) Fire(sigs []SignalType) {
 	}
 	fmt.Printf("Firing with signal %d\n", sig)
 	n.sigChan <- Signal{
+		active:   true,
 		val:      sig,
 		synapses: n.snip.Synapses,
 	}

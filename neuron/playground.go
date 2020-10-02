@@ -18,11 +18,10 @@ const (
 )
 
 type Playground struct {
-	codes map[int]*DNA
-
-	rnd *rand.Rand
-
-	accuracy AccuracyFunc
+	codes     map[int]*DNA
+	envInputs []SignalType
+	accuracy  AccuracyFunc
+	rnd       *rand.Rand
 }
 
 type SpeciesScore struct {
@@ -30,11 +29,12 @@ type SpeciesScore struct {
 	score int64
 }
 
-func NewPlayground(accuracy AccuracyFunc) *Playground {
+func NewPlayground(accuracy AccuracyFunc, envInputs []SignalType) *Playground {
 	p := Playground{
-		codes:    make(map[int]*DNA, numSpeciesPerGen),
-		rnd:      rand.New(rand.NewSource(time.Now().UnixNano())),
-		accuracy: accuracy,
+		codes:     make(map[int]*DNA, numSpeciesPerGen),
+		envInputs: envInputs,
+		accuracy:  accuracy,
+		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 
 	for id := 0; id < numSpeciesPerGen; id++ {
@@ -46,7 +46,7 @@ func NewPlayground(accuracy AccuracyFunc) *Playground {
 }
 
 func (p *Playground) SimulatePlayground() {
-	results := RunGeneration(p.codes)
+	results := RunGeneration(p.codes, p.envInputs)
 
 	scores := make([]SpeciesScore, len(results))
 	for id, result := range results {
