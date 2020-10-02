@@ -5,5 +5,5 @@ import (
 )
 
 func TestAdder(t *testing.T) {
-	Adder()
+	Adder2()
 }

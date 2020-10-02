@@ -87,11 +87,17 @@ func (d *DNA) PrettyPrint() string {
 		if snip == nil {
 			continue
 		}
+		if _, exists := d.visionIDs[id]; exists {
+			s += "(V)-"
+		}
+		if _, exists := d.motorIDs[id]; exists {
+			s += "(M)-"
+		}
 		s += fmt.Sprintf("%d:%v[", id, snip.Op)
 		for synapse := range snip.Synapses {
 			s += fmt.Sprintf("%d,", synapse)
 		}
-		s = strings.TrimRight(s, ",") + "] "
+		s = strings.TrimRight(s, ",") + "]  "
 	}
 	return s
 }

@@ -9,18 +9,24 @@ import (
 	"time"
 )
 
-const (
-	dnaSeedSnippets  = 10
-	dnaSeedMutations = 20
+type PlaygroundConfig struct {
+	// Playground
+	NumSpecies       int
+	NumGensPerPlay   int
+	DnaSeedSnippets  int
+	DnaSeedMutations int
+	WinnerRatio      int
 
-	maxStepsPerGen = 500
+	// Generation
+	MaxStepsPerGen int
 
-	winnerRatio = 2
-)
+	AccuracyFn AccuracyFunc
+}
 
 type Playground struct {
-	codes map[int]*DNA
-	rnd   *rand.Rand
+	codes  map[int]*DNA
+	config PlaygroundConfig
+	rnd    *rand.Rand
 }
 
 type SpeciesScore struct {
@@ -28,31 +34,42 @@ type SpeciesScore struct {
 	score int
 }
 
-func NewPlayground() *Playground {
+func NewPlayground(config PlaygroundConfig) *Playground {
 	p := Playground{
-		codes: make(map[int]*DNA),
-		rnd:   rand.New(rand.NewSource(time.Now().UnixNano())),
+		codes:  make(map[int]*DNA),
+		config: config,
+		rnd:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	return &p
 }
 
-func (p *Playground) SeedRandDNA(numSpecies int) {
-	for id := 0; id < numSpecies; id++ {
+func (p *Playground) SeedRandDNA() {
+	for id := 0; id < p.config.NumSpecies; id++ {
 		dna := p.initRandDNA()
 		p.codes[id] = dna
 	}
 }
 
+func (p *Playground) SeedKnownDNA(dna *DNA) {
+	for id := 0; id < p.config.NumSpecies; id++ {
+		p.codes[id] = dna.DeepCopy()
+	}
+}
+
 // Run an evolution and return the best DNA after n generations.
-func (p *Playground) SimulatePlayground(n int, envInputs []SignalType, accuracy AccuracyFunc) *DNA {
+func (p *Playground) SimulatePlayground(envInputs []SignalType) *DNA {
 	fmt.Printf("Beginning evolution with input %v\n", envInputs)
-	for i := 0; i < n; i++ {
-		results := RunGeneration(p.codes, envInputs)
+	for i := 0; i < p.config.NumGensPerPlay; i++ {
+		for _, code := range p.codes {
+			p.mutateDNA(code)
+		}
+
+		results := RunGeneration(p.codes, envInputs, p.config.MaxStepsPerGen)
 
 		scores := make([]SpeciesScore, len(results))
 		minScore := math.MaxInt32
 		for id, result := range results {
-			scores[id] = p.scoreResult(id, result, accuracy)
+			scores[id] = p.scoreResult(id, result, envInputs)
 			if scores[id].score < minScore {
 				minScore = scores[id].score
 			}
@@ -61,13 +78,9 @@ func (p *Playground) SimulatePlayground(n int, envInputs []SignalType, accuracy 
 
 		p.setNextGenCodes(scores)
 		fmt.Printf("Gen %d: best score %d from dna %s\n", i, minScore, p.codes[0].PrettyPrint())
-
-		for _, code := range p.codes {
-			p.mutateDNA(code)
-		}
 	}
 
-	return p.codes[0]
+	return p.codes[0].DeepCopy()
 }
 
 func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
@@ -76,25 +89,20 @@ func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
 		return scores[i].score < scores[j].score
 	})
 
-	// fmt.Printf("Sorted scores: %v\n", scores)
-
-	numSpecies := len(scores)
-	newCodes := make(map[int]*DNA, numSpecies)
+	newCodes := make(map[int]*DNA, p.config.NumSpecies)
 
 	// Copy the winning DNA the most times, the 2nd place DNA the second most, etc.
-	numBrainsPerSpecies := numSpecies / winnerRatio
+	numBrainsPerSpecies := p.config.NumSpecies / p.config.WinnerRatio
 	// The highest score is at the first index of scores.
 	winnerIndex := 0
-	for i := numSpecies; i > 0; i-- {
+	for i := p.config.NumSpecies; i > 0; i-- {
 		if i == numBrainsPerSpecies {
 			// numSpecies = 100, winnerRatio = 2. So when it hits 50, need to go to 25.
 			// 50 /= 2 -> 25 /= 2 -> 12
-			numBrainsPerSpecies /= winnerRatio
+			numBrainsPerSpecies /= p.config.WinnerRatio
 			// Now grab the next best DNA from scores.
 			winnerIndex++
 		}
-
-		// fmt.Printf("Sorted scores: %v\n", scores)
 
 		// Create a copy of the underlying DNA struct to have different references
 		// at each index even though the (pointer to the) source DNA is the same.
@@ -102,19 +110,17 @@ func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
 		// Snippet pointers which were being modified by different references.
 		// copiedDNA := *p.codes[scores[winnerIndex].id] // (didn't work)
 		copiedDNA := p.codes[scores[winnerIndex].id].DeepCopy()
-		// fmt.Printf("Copying DNA of species %d which is %s\n", scores[winnerIndex].id, copiedDNA.PrettyPrint())
 
 		// Insert so that best DNA starts at index 0 even though the loop counts down.
-		newCodes[numSpecies-i] = copiedDNA //&copiedDNA
-		// fmt.Printf("And stored in newCodes as         %s\n", newCodes[numSpecies-i].PrettyPrint())
+		newCodes[p.config.NumSpecies-i] = copiedDNA
 	}
 	p.codes = newCodes
 }
 
-func (p *Playground) scoreResult(id int, result *BrainResult, accuracy AccuracyFunc) SpeciesScore {
+func (p *Playground) scoreResult(id int, result *BrainResult, inputs []SignalType) SpeciesScore {
 	score := 0
 	if len(result.moves) > 0 {
-		score += 1000000 * accuracy(result.moves)
+		score += 1000000 * p.config.AccuracyFn(inputs, result.moves)
 		score += 1000 * result.steps
 		score += dnaComplexity(p.codes[id])
 	} else {
@@ -136,13 +142,13 @@ func dnaComplexity(dna *DNA) int {
 
 func (p *Playground) initRandDNA() *DNA {
 	dna := NewDNA()
-	for i := 0; i < dnaSeedSnippets; i++ {
+	for i := 0; i < p.config.DnaSeedSnippets; i++ {
 		dna.AddSnippet(p.rnd.Intn(10))
 	}
 	dna.AddVisionId(0)
-	dna.AddMotorId(dnaSeedSnippets - 1)
+	dna.AddMotorId(p.config.DnaSeedSnippets - 1)
 
-	for i := 0; i < dnaSeedMutations; i++ {
+	for i := 0; i < p.config.DnaSeedMutations; i++ {
 		p.mutateDNA(dna)
 	}
 	return dna

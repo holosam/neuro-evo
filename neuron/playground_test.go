@@ -7,8 +7,12 @@ import (
 
 // Test some invariants after mutating DNA.
 func TestRandDNA(t *testing.T) {
-	p := NewPlayground()
-	p.SeedRandDNA(1)
+	p := NewPlayground(PlaygroundConfig{
+		NumSpecies:       1,
+		DnaSeedSnippets:  10,
+		DnaSeedMutations: 10,
+	})
+	p.SeedRandDNA()
 	dna := p.codes[0]
 
 	if got := len(dna.snips); got < 1 {
@@ -23,7 +27,11 @@ func TestRandDNA(t *testing.T) {
 }
 
 func TestResultScoring(t *testing.T) {
-	p := NewPlayground()
+	p := NewPlayground(PlaygroundConfig{
+		AccuracyFn: func(inputs []SignalType, outputs []SignalType) int {
+			return int(outputs[0])
+		},
+	})
 
 	targetID := 0
 	p.codes[targetID] = SimpleTestDNA()
@@ -32,9 +40,7 @@ func TestResultScoring(t *testing.T) {
 		id:    targetID,
 		moves: []SignalType{10, 6},
 		steps: 20,
-	}, func(moves []SignalType) int {
-		return int(moves[0])
-	})
+	}, []SignalType{})
 
 	if got := score.score; got != 10020005 {
 		t.Errorf("Want 10020005, got %d", got)
@@ -43,8 +49,11 @@ func TestResultScoring(t *testing.T) {
 
 func TestNextGenCodes(t *testing.T) {
 	numSpecies := 10
-	p := NewPlayground()
-	p.SeedRandDNA(numSpecies)
+	p := NewPlayground(PlaygroundConfig{
+		NumSpecies:  numSpecies,
+		WinnerRatio: 2,
+	})
+	p.SeedRandDNA()
 
 	scores := make([]SpeciesScore, numSpecies)
 	for i := 0; i < numSpecies; i++ {
@@ -71,13 +80,22 @@ func TestNextGenCodes(t *testing.T) {
 }
 
 func TestSimulatePlayground(t *testing.T) {
-	p := NewPlayground()
-	p.SeedRandDNA(10)
+	p := NewPlayground(PlaygroundConfig{
+		NumSpecies:       10,
+		NumGensPerPlay:   10,
+		WinnerRatio:      2,
+		DnaSeedSnippets:  10,
+		DnaSeedMutations: 10,
+		MaxStepsPerGen:   20,
+
+		AccuracyFn: func(inputs []SignalType, outputs []SignalType) int {
+			return int(outputs[0])
+		},
+	})
+	p.SeedRandDNA()
 	arbitaryDNA := p.codes[0]
 
-	p.SimulatePlayground(10, []SignalType{1, 2}, func(moves []SignalType) int {
-		return int(moves[0])
-	})
+	p.SimulatePlayground([]SignalType{1, 2})
 
 	if arbitaryDNA == p.codes[0] {
 		t.Errorf("Expected evolution, got nothing")
