@@ -1,6 +1,7 @@
 package neuron
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"sort"
@@ -11,72 +12,85 @@ const (
 	dnaSeedSnippets  = 10
 	dnaSeedMutations = 20
 
-	numSpeciesPerGen = 100
-	maxStepsPerGen   = 500
+	maxStepsPerGen = 500
 
 	winnerRatio = 2
 )
 
 type Playground struct {
-	codes     map[int]*DNA
-	envInputs []SignalType
-	accuracy  AccuracyFunc
-	rnd       *rand.Rand
+	codes map[int]*DNA
+	rnd   *rand.Rand
 }
 
 type SpeciesScore struct {
 	id    int
-	score int64
+	score int
 }
 
-func NewPlayground(accuracy AccuracyFunc, envInputs []SignalType) *Playground {
+func NewPlayground() *Playground {
 	p := Playground{
-		codes:     make(map[int]*DNA, numSpeciesPerGen),
-		envInputs: envInputs,
-		accuracy:  accuracy,
-		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
+		codes: make(map[int]*DNA),
+		rnd:   rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
-
-	for id := 0; id < numSpeciesPerGen; id++ {
-		dna := p.initRandDNA()
-		p.codes[id] = dna
-	}
-
 	return &p
 }
 
-func (p *Playground) SimulatePlayground() {
-	results := RunGeneration(p.codes, p.envInputs)
+func (p *Playground) SeedRandDNA(numSpecies int) {
+	for id := 0; id < numSpecies; id++ {
+		dna := p.initRandDNA()
+		p.codes[id] = dna
+	}
+}
 
-	scores := make([]SpeciesScore, len(results))
-	for id, result := range results {
-		scores[id] = p.scoreResult(id, result)
+// Run an evolution and return the best DNA after n generations.
+func (p *Playground) SimulatePlayground(n int, envInputs []SignalType, accuracy AccuracyFunc) *DNA {
+	fmt.Printf("Beginning evolution with input %v\n", envInputs)
+	for i := 0; i < n; i++ {
+		results := RunGeneration(p.codes, envInputs)
+
+		scores := make([]SpeciesScore, len(results))
+		for id, result := range results {
+			scores[id] = p.scoreResult(id, result, accuracy)
+			fmt.Printf("Gen %d: species #%d, score %d\n", i, id, scores[id])
+		}
+
+		p.setNextGenCodes(scores)
 	}
 
-	// Need to figure out if this sorts high to low or low to high
+	return p.codes[0]
+}
+
+func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
+	// Sorts low to high (lower scores are better).
 	sort.Slice(scores, func(i, j int) bool {
 		return scores[i].score < scores[j].score
 	})
 
-	newCodes := make(map[int]*DNA, numSpeciesPerGen)
-	numBrainsPerSpecies := numSpeciesPerGen / winnerRatio
-	speciesIndex := numSpeciesPerGen - 1
+	numSpecies := len(scores)
+	newCodes := make(map[int]*DNA, numSpecies)
+
+	// Copy the winning DNA the most times, the 2nd place DNA the second most, etc.
+	numBrainsPerSpecies := numSpecies / winnerRatio
+	// The highest score is at the first index of scores.
 	winnerIndex := 0
-	for numBrainsPerSpecies > 0 {
-		for i := speciesIndex; i > numBrainsPerSpecies; i-- {
-			newCodes[i] = p.codes[winnerIndex]
+	for i := numSpecies; i > 0; i-- {
+		if i == numBrainsPerSpecies {
+			// numSpecies = 100, winnerRatio = 2. So when it hits 50, need to go to 25.
+			// 50 /= 2 -> 25 /= 2 -> 12
+			numBrainsPerSpecies /= winnerRatio
+			// Now grab the next best DNA from scores.
+			winnerIndex++
 		}
-		speciesIndex = numBrainsPerSpecies
-		numBrainsPerSpecies /= winnerRatio
-		winnerIndex++
+		// Insert so that best DNA starts at index 0 even though the loop counts down.
+		newCodes[numSpecies-i] = p.codes[scores[winnerIndex].id]
 	}
 	p.codes = newCodes
 }
 
-func (p *Playground) scoreResult(id int, result *BrainResult) SpeciesScore {
-	score := 1000000 * p.accuracy(result.moves)
-	score += 1000 * int64(result.steps)
-	score += int64(dnaComplexity(p.codes[id]))
+func (p *Playground) scoreResult(id int, result *BrainResult, accuracy AccuracyFunc) SpeciesScore {
+	score := 1000000 * accuracy(result.moves)
+	score += 1000 * result.steps
+	score += dnaComplexity(p.codes[id])
 	return SpeciesScore{
 		id:    id,
 		score: score,

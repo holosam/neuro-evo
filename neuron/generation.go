@@ -1,9 +1,7 @@
 package neuron
 
-import "fmt"
-
 // AccuracyFunc scores the output moves. Closer to 0 is better.
-type AccuracyFunc func(moves []SignalType) int64
+type AccuracyFunc func(moves []SignalType) int
 
 type BrainResult struct {
 	id    int
@@ -37,7 +35,6 @@ func FireBrain(id int, dna *DNA, envInputs []SignalType, resChan chan BrainResul
 	for step := 0; step < maxStepsPerGen; step++ {
 		moves := brain.StepFunction()
 		if len(moves) > 0 {
-			fmt.Printf("Stopping id=%d with moves=%v\n", id, moves)
 			resChan <- BrainResult{
 				id:    id,
 				moves: moves,
@@ -51,5 +48,16 @@ func FireBrain(id int, dna *DNA, envInputs []SignalType, resChan chan BrainResul
 		id:    id,
 		moves: make([]SignalType, 0),
 		steps: maxStepsPerGen,
+	}
+}
+
+func FireBrainBlock(dna *DNA, envInputs []SignalType) []SignalType {
+	brain := Flourish(dna)
+	brain.SeeInput(envInputs...)
+	for step := 0; step < maxStepsPerGen; step++ {
+		moves := brain.StepFunction()
+		if len(moves) > 0 {
+			return moves
+		}
 	}
 }
