@@ -69,3 +69,17 @@ func TestNextGenCodes(t *testing.T) {
 		t.Errorf("Want %v, got %v", want, p.codes)
 	}
 }
+
+func TestSimulatePlayground(t *testing.T) {
+	p := NewPlayground()
+	p.SeedRandDNA(10)
+	arbitaryDNA := p.codes[0]
+
+	p.SimulatePlayground(10, []SignalType{1, 2}, func(moves []SignalType) int {
+		return int(moves[0])
+	})
+
+	if arbitaryDNA == p.codes[0] {
+		t.Errorf("Expected evolution, got nothing")
+	}
+}

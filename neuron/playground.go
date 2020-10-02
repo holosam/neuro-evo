@@ -3,6 +3,7 @@ package neuron
 import (
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"sort"
 	"time"
@@ -49,12 +50,21 @@ func (p *Playground) SimulatePlayground(n int, envInputs []SignalType, accuracy 
 		results := RunGeneration(p.codes, envInputs)
 
 		scores := make([]SpeciesScore, len(results))
+		minScore := math.MaxInt32
 		for id, result := range results {
 			scores[id] = p.scoreResult(id, result, accuracy)
-			fmt.Printf("Gen %d: species #%d, score %d\n", i, id, scores[id])
+			if scores[id].score < minScore {
+				minScore = scores[id].score
+			}
+			// fmt.Printf("Gen %d: species #%d, result=%v, score=%d, and dna %s\n", i, id, result, scores[id].score, p.codes[id].PrettyPrint())
 		}
 
 		p.setNextGenCodes(scores)
+		fmt.Printf("Gen %d: best score %d from dna %s\n", i, minScore, p.codes[0].PrettyPrint())
+
+		for _, code := range p.codes {
+			p.mutateDNA(code)
+		}
 	}
 
 	return p.codes[0]
@@ -65,6 +75,8 @@ func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
 	sort.Slice(scores, func(i, j int) bool {
 		return scores[i].score < scores[j].score
 	})
+
+	// fmt.Printf("Sorted scores: %v\n", scores)
 
 	numSpecies := len(scores)
 	newCodes := make(map[int]*DNA, numSpecies)
@@ -81,16 +93,33 @@ func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
 			// Now grab the next best DNA from scores.
 			winnerIndex++
 		}
+
+		// fmt.Printf("Sorted scores: %v\n", scores)
+
+		// Create a copy of the underlying DNA struct to have different references
+		// at each index even though the (pointer to the) source DNA is the same.
+		// Tried this at first, but it didn't work because it copied over all the
+		// Snippet pointers which were being modified by different references.
+		// copiedDNA := *p.codes[scores[winnerIndex].id] // (didn't work)
+		copiedDNA := p.codes[scores[winnerIndex].id].DeepCopy()
+		// fmt.Printf("Copying DNA of species %d which is %s\n", scores[winnerIndex].id, copiedDNA.PrettyPrint())
+
 		// Insert so that best DNA starts at index 0 even though the loop counts down.
-		newCodes[numSpecies-i] = p.codes[scores[winnerIndex].id]
+		newCodes[numSpecies-i] = copiedDNA //&copiedDNA
+		// fmt.Printf("And stored in newCodes as         %s\n", newCodes[numSpecies-i].PrettyPrint())
 	}
 	p.codes = newCodes
 }
 
 func (p *Playground) scoreResult(id int, result *BrainResult, accuracy AccuracyFunc) SpeciesScore {
-	score := 1000000 * accuracy(result.moves)
-	score += 1000 * result.steps
-	score += dnaComplexity(p.codes[id])
+	score := 0
+	if len(result.moves) > 0 {
+		score += 1000000 * accuracy(result.moves)
+		score += 1000 * result.steps
+		score += dnaComplexity(p.codes[id])
+	} else {
+		score = math.MaxInt32
+	}
 	return SpeciesScore{
 		id:    id,
 		score: score,

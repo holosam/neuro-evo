@@ -60,4 +60,5 @@ func FireBrainBlock(dna *DNA, envInputs []SignalType) []SignalType {
 			return moves
 		}
 	}
+	return make([]SignalType, 0)
 }

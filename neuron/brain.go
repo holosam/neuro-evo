@@ -1,6 +1,9 @@
 package neuron
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const dnaSep = "|"
 
@@ -11,6 +14,7 @@ type DNA struct {
 	motorIDs  IntSet
 
 	nextID int
+	// Adding any fields to here need be changed in DeepCopy
 }
 
 func NewDNA() *DNA {
@@ -21,6 +25,27 @@ func NewDNA() *DNA {
 		nextID:    0,
 	}
 	return &d
+}
+
+func (src *DNA) DeepCopy() *DNA {
+	dst := NewDNA()
+	for id, snip := range src.snips {
+		synapses := make([]int, len(snip.Synapses))
+		synIndex := 0
+		for synapse := range snip.Synapses {
+			synapses[synIndex] = synapse
+			synIndex++
+		}
+		dst.snips[id] = MakeSnippetOp(snip.Op, synapses...)
+	}
+	for id := range src.visionIDs {
+		dst.AddVisionId(id)
+	}
+	for id := range src.motorIDs {
+		dst.AddMotorId(id)
+	}
+	dst.nextID = src.nextID
+	return dst
 }
 
 func (d *DNA) AddSnippet(opVal int) *Snippet {
@@ -48,6 +73,27 @@ func (d *DNA) AddMotorId(id int) {
 		return
 	}
 	d.motorIDs[id] = member
+}
+
+func (d *DNA) PrettyPrint() string {
+	s := ""
+	sortedSnips := make([]*Snippet, d.nextID)
+	// fmt.Printf("len(d.snips)=%d d.nextID=%d\n", len(d.snips), d.nextID)
+	for id, snip := range d.snips {
+		sortedSnips[id] = snip
+	}
+
+	for id, snip := range sortedSnips {
+		if snip == nil {
+			continue
+		}
+		s += fmt.Sprintf("%d:%v[", id, snip.Op)
+		for synapse := range snip.Synapses {
+			s += fmt.Sprintf("%d,", synapse)
+		}
+		s = strings.TrimRight(s, ",") + "] "
+	}
+	return s
 }
 
 // Brain docs
@@ -115,7 +161,6 @@ func (b *Brain) StepFunction() []SignalType {
 	for i := 0; i < expectedSignals; i++ {
 		select {
 		case signal := <-b.sigChan:
-			fmt.Printf("Channel normal signal %d\n", signal.val)
 			// May send an empty signal if the action potential threshold isn't met.
 			if signal.active {
 				for neuronID := range signal.synapses {
@@ -123,7 +168,6 @@ func (b *Brain) StepFunction() []SignalType {
 				}
 			}
 		case signal := <-b.motorChan:
-			fmt.Printf("Channel motor signal %d\n", signal.val)
 			if signal.active {
 				movements = append(movements, signal.val)
 			}
@@ -137,6 +181,5 @@ func (b Brain) addPendingSignal(neuronID int, sig SignalType) {
 	if _, exists := b.neurons[neuronID]; !exists {
 		return
 	}
-	fmt.Printf("Adding pending signal id=%d sig=%d\n", neuronID, sig)
 	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
 }

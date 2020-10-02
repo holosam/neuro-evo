@@ -1,7 +1,6 @@
 package neuron
 
 import (
-	"fmt"
 	"log"
 	"math"
 )
@@ -88,8 +87,12 @@ func (s *Snippet) RemoveSynapse(id int) {
 }
 
 func MakeSnippet(opVal int, synapes ...int) *Snippet {
+	return MakeSnippetOp(interpretOp(opVal), synapes...)
+}
+
+func MakeSnippetOp(op OperatorType, synapes ...int) *Snippet {
 	s := Snippet{
-		Op:       interpretOp(opVal),
+		Op:       op,
 		Synapses: make(IntSet),
 	}
 	for _, synapse := range synapes {
@@ -120,7 +123,7 @@ func (n *Neuron) Fire(sigs []SignalType) {
 	for i := 1; i < len(sigs); i++ {
 		sig = n.snip.Op.operate(sig, sigs[i])
 	}
-	fmt.Printf("Firing with signal %d\n", sig)
+
 	n.sigChan <- Signal{
 		active:   true,
 		val:      sig,
