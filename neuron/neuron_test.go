@@ -48,7 +48,7 @@ func TestOverflow(t *testing.T) {
 func TestSignalingPathway(t *testing.T) {
 	sigChan := make(chan Signal)
 	n := Neuron{
-		snip:    MakeSnippet(ADD, 1, 2),
+		snip:    MakeSnippet(0, 1, 2),
 		sigChan: sigChan,
 	}
 
@@ -66,7 +66,7 @@ func TestSignalingPathway(t *testing.T) {
 func TestVision(t *testing.T) {
 	sigChan := make(chan Signal)
 	n := Neuron{
-		snip:     MakeSnippet(ADD, 1, 2),
+		snip:     MakeSnippet(0, 1, 2),
 		sigChan:  sigChan,
 		isVision: true,
 	}

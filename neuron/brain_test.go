@@ -7,8 +7,8 @@ import (
 
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
-	d.AddSnippet(ADD).AddSynapse(1)
-	d.AddSnippet(FALSIFY).AddSynapse(0)
+	d.AddSnippet(0).AddSynapse(1)
+	d.AddSnippet(9).AddSynapse(0)
 	b := Flourish(d)
 
 	sigs := []SignalType{1, 2, 3, 4, 5}
@@ -32,13 +32,13 @@ func TestBrainStep(t *testing.T) {
 func TestEyesight(t *testing.T) {
 	// Two vision neurons pointing at a motor neuron.
 	d := NewDNA()
-	d.AddSnippet(ADD).AddSynapse(2)
+	d.AddSnippet(0).AddSynapse(2)
 	d.AddVisionId(0)
 
-	d.AddSnippet(ADD).AddSynapse(2)
+	d.AddSnippet(0).AddSynapse(2)
 	d.AddVisionId(1)
 
-	d.AddSnippet(ADD)
+	d.AddSnippet(0)
 	d.AddMotorId(2)
 
 	b := Flourish(d)

@@ -23,8 +23,8 @@ func NewDNA() *DNA {
 	return &d
 }
 
-func (d *DNA) AddSnippet(op OperatorType) *Snippet {
-	s := MakeSnippet(op)
+func (d *DNA) AddSnippet(opVal int) *Snippet {
+	s := MakeSnippet(opVal)
 	d.snips[d.nextID] = s
 	d.nextID++
 	return s

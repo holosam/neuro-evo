@@ -10,7 +10,6 @@ import (
 type SignalType = uint8
 
 type void struct{}
-
 type IntSet = map[int]void
 
 var member void
@@ -75,8 +74,8 @@ type Snippet struct {
 	Synapses IntSet
 }
 
-func (s *Snippet) SetOp(op int) {
-	s.Op = interpretOp(op)
+func (s *Snippet) SetOp(opVal int) {
+	s.Op = interpretOp(opVal)
 }
 
 func (s *Snippet) AddSynapse(id int) {
@@ -87,9 +86,9 @@ func (s *Snippet) RemoveSynapse(id int) {
 	delete(s.Synapses, id)
 }
 
-func MakeSnippet(op OperatorType, synapes ...int) *Snippet {
+func MakeSnippet(opVal int, synapes ...int) *Snippet {
 	s := Snippet{
-		Op:       op,
+		Op:       interpretOp(opVal),
 		Synapses: make(IntSet),
 	}
 	for _, synapse := range synapes {
