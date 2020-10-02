@@ -5,5 +5,7 @@ import (
 )
 
 func TestAdder(t *testing.T) {
-	Adder2()
+	econf := DefaultEnvConfig()
+	econf.NumPlaygrounds = 5
+	Adder(econf)
 }
