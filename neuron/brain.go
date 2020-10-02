@@ -1,5 +1,7 @@
 package neuron
 
+import "fmt"
+
 const dnaSep = "|"
 
 type DNA struct {
@@ -13,8 +15,10 @@ type DNA struct {
 
 func NewDNA() *DNA {
 	d := DNA{
-		snips:  make(map[int]*Snippet),
-		nextID: 0,
+		snips:     make(map[int]*Snippet),
+		visionIDs: make(IntSet),
+		motorIDs:  make(IntSet),
+		nextID:    0,
 	}
 	return &d
 }
@@ -30,6 +34,22 @@ func (d *DNA) DeleteSnippet(id int) {
 	delete(d.snips, id)
 }
 
+func (d *DNA) AddVisionId(id int) {
+	if _, exists := d.motorIDs[id]; exists {
+		// Should probably fail here, but nbd for now.
+		return
+	}
+	d.visionIDs[id] = member
+}
+
+func (d *DNA) AddMotorId(id int) {
+	if _, exists := d.visionIDs[id]; exists {
+		// Should probably fail here, but nbd for now.
+		return
+	}
+	d.motorIDs[id] = member
+}
+
 // Brain docs
 type Brain struct {
 	neurons map[int]*Neuron
@@ -43,7 +63,7 @@ type Brain struct {
 }
 
 func Flourish(dna *DNA) *Brain {
-	numNeurons := len(dna.snips) // + 2
+	numNeurons := len(dna.snips)
 
 	b := Brain{
 		neurons:        make(map[int]*Neuron, numNeurons),
@@ -56,6 +76,7 @@ func Flourish(dna *DNA) *Brain {
 	for snipID, snip := range dna.snips {
 		selectedChan := b.sigChan
 		if _, exists := dna.motorIDs[snipID]; exists {
+			fmt.Printf("Does this happen??? id=%d\n", snipID)
 			selectedChan = b.motorChan
 		}
 
@@ -86,7 +107,7 @@ func (b *Brain) StepFunction() []SignalType {
 	// Track the number of expected signals to receive from channels.
 	expectedSignals := len(b.pendingSignals)
 	for neuronID, sigs := range b.pendingSignals {
-		go b.neurons[neuronID].Fire(b.sigChan, sigs)
+		go b.neurons[neuronID].Fire(sigs)
 	}
 	// Clear pending signals before refilling.
 	b.pendingSignals = make(map[int][]SignalType, len(b.neurons))
@@ -95,6 +116,7 @@ func (b *Brain) StepFunction() []SignalType {
 	for i := 0; i < expectedSignals; i++ {
 		select {
 		case signal := <-b.sigChan:
+			fmt.Printf("Channel normal signal %d\n", signal.val)
 			// May send an empty signal if the action potential threshold isn't met.
 			if len(signal.synapses) > 0 {
 				for neuronID := range signal.synapses {
@@ -102,6 +124,7 @@ func (b *Brain) StepFunction() []SignalType {
 				}
 			}
 		case signal := <-b.motorChan:
+			fmt.Printf("Channel motor signal %d\n", signal.val)
 			// Don't have to check if synapses are empty, just matters if it fired.
 			movements = append(movements, signal.val)
 		}
@@ -114,5 +137,6 @@ func (b Brain) addPendingSignal(neuronID int, sig SignalType) {
 	if _, exists := b.neurons[neuronID]; !exists {
 		return
 	}
+	fmt.Printf("Adding pending signal id=%d sig=%d\n", neuronID, sig)
 	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
 }

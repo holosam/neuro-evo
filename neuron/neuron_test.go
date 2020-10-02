@@ -46,13 +46,13 @@ func TestOverflow(t *testing.T) {
 }
 
 func TestSignalingPathway(t *testing.T) {
+	sigChan := make(chan Signal)
 	n := Neuron{
-		snip: MakeSnippet(ADD, 1, 2),
+		snip:    MakeSnippet(ADD, 1, 2),
+		sigChan: sigChan,
 	}
 
-	sigChan := make(chan Signal)
-
-	go n.Fire(sigChan, []SignalType{1, 2, 3, 4, 5})
+	go n.Fire([]SignalType{1, 2, 3, 4, 5})
 	sig := <-sigChan
 
 	if !reflect.DeepEqual(sig.synapses, n.snip.Synapses) {
@@ -60,5 +60,33 @@ func TestSignalingPathway(t *testing.T) {
 	}
 	if sig.val != 15 {
 		t.Errorf("Want 15, got %d", sig.val)
+	}
+}
+
+func TestVision(t *testing.T) {
+	sigChan := make(chan Signal)
+	n := Neuron{
+		snip:     MakeSnippet(ADD, 1, 2),
+		sigChan:  sigChan,
+		isVision: true,
+	}
+
+	go n.Fire([]SignalType{})
+	sig := <-sigChan
+	if got := sig.synapses; len(got) != 0 {
+		t.Errorf("Want empty signal, got %v", got)
+	}
+
+	go n.Fire([]SignalType{1})
+	sig = <-sigChan
+	if got := sig.val; got != 1 {
+		t.Errorf("Want 1, got %d", got)
+	}
+
+	n.isVision = false
+	go n.Fire([]SignalType{1})
+	sig = <-sigChan
+	if got := sig.synapses; len(got) != 0 {
+		t.Errorf("Want empty signal, got %v", got)
 	}
 }

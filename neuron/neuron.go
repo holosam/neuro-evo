@@ -1,6 +1,7 @@
 package neuron
 
 import (
+	"fmt"
 	"log"
 	"math"
 )
@@ -106,22 +107,22 @@ type Neuron struct {
 }
 
 // Fire fires the neuron if there are at least 2 inputs.
-func (n *Neuron) Fire(sigChan chan Signal, sigs []SignalType) {
+func (n *Neuron) Fire(sigs []SignalType) {
 	// Vision neurons only need 1 input signal, others need 2.
 	if len(sigs) == 0 || (len(sigs) == 1 && !n.isVision) {
 		// Send an empty struct on the channel to alert the caller
 		// that there is nothing to do.
-		sigChan <- Signal{}
+		n.sigChan <- Signal{}
 		return
 	}
 
-	signal := sigs[0]
+	sig := sigs[0]
 	for i := 1; i < len(sigs); i++ {
-		signal = n.snip.Op.operate(signal, sigs[i])
+		sig = n.snip.Op.operate(sig, sigs[i])
 	}
-
-	sigChan <- Signal{
-		val:      signal,
+	fmt.Printf("Firing with signal %d\n", sig)
+	n.sigChan <- Signal{
+		val:      sig,
 		synapses: n.snip.Synapses,
 	}
 }
