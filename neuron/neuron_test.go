@@ -45,40 +45,18 @@ func TestOverflow(t *testing.T) {
 	}
 }
 
-func TestGeneticOperate(t *testing.T) {
-	if got := Grow(0, 1).Operate([]SignalType{1, 2}); got != 3 {
-		t.Errorf("Want 3, got %d", got)
-	}
-	if got := Grow(0, 1).Operate([]SignalType{1, 2, 3, 4, 5}); got != 15 {
-		t.Errorf("Want 15, got %d", got)
-	}
-}
-
-func TestGrowingGenetic(t *testing.T) {
-	g := Grow(27, 7)
-	if g.op != IFF {
-		t.Errorf("Want IFF, got %v", g.op)
-	}
-
-	// 17 % 7 = *3*, 17 - (3+1) = 13, 13 % 7 = *6*, 13 - (6+1) = 6
-	want := make(IntSet)
-	want[3] = member
-	want[6] = member
-
-	if !reflect.DeepEqual(want, g.downstream) {
-		t.Errorf("Want %v, got %v", want, g.downstream)
-	}
-}
-
 func TestSignalingPathway(t *testing.T) {
-	g := Grow(20, 3)
+	n := Neuron{
+		snip: MakeSnippet(ADD, 1, 2),
+	}
+
 	sigChan := make(chan Signal)
 
-	go g.Fire(sigChan, []SignalType{1, 2, 3, 4, 5})
+	go n.Fire(sigChan, []SignalType{1, 2, 3, 4, 5})
 	sig := <-sigChan
 
-	if !reflect.DeepEqual(sig.nIndicies, g.downstream) {
-		t.Errorf("Want %v, got %v", sig.nIndicies, g.downstream)
+	if !reflect.DeepEqual(sig.nIndicies, n.snip.Synapses) {
+		t.Errorf("Want %v, got %v", sig.nIndicies, n.snip.Synapses)
 	}
 	if sig.val != 15 {
 		t.Errorf("Want 15, got %d", sig.val)

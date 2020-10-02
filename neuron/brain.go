@@ -1,45 +1,55 @@
 package neuron
 
-import (
-	"log"
-	"strconv"
-	"strings"
-	"sync"
-)
-
 const dnaSep = "|"
+
+type DNA struct {
+	snips map[int]Snippet
+
+	// visionID int
+	// motorID  int
+
+	nextID int
+}
+
+func NewDNA() *DNA {
+	d := DNA{
+		snips:  make(map[int]Snippet),
+		nextID: 0,
+	}
+	return &d
+}
+
+func (d *DNA) AddSnippet(op OperatorType) *Snippet {
+	s := MakeSnippet(op)
+	d.snips[d.nextID] = s
+	d.nextID++
+	return &s
+}
+
+func (d *DNA) DeleteSnippet(id int) {
+	delete(d.snips, id)
+}
 
 // Brain docs
 type Brain struct {
-	DNA string
-
-	neurons []Neuron
-
-	sigChan chan Signal
-
-	mu sync.Mutex
+	neurons map[int]Neuron
 
 	pendingSignals map[int][]SignalType
+
+	sigChan chan Signal
 }
 
-func Flourish(dna string) *Brain {
-	snippets := strings.Split(dna, dnaSep)
-	numNeurons := len(snippets)
+func Flourish(dna *DNA) *Brain {
+	numNeurons := len(dna.snips) // + 2
 
 	b := Brain{
-		DNA:            dna,
-		neurons:        make([]Neuron, numNeurons),
-		sigChan:        make(chan Signal),
-		mu:             sync.Mutex{},
+		neurons:        make(map[int]Neuron, numNeurons),
 		pendingSignals: make(map[int][]SignalType, numNeurons),
+		sigChan:        make(chan Signal),
 	}
 
-	for nIndex, snippet := range snippets {
-		if snippint, err := strconv.Atoi(snippet); err == nil {
-			b.neurons[nIndex] = Grow(snippint, numNeurons)
-		} else {
-			log.Fatalf("Unrecognized DNA snippet \"%s\" got err: %v", snippet, err)
-		}
+	for nIndex, snip := range dna.snips {
+		b.neurons[nIndex] = Neuron{snip: snip}
 	}
 
 	return &b
@@ -47,11 +57,10 @@ func Flourish(dna string) *Brain {
 
 func (b *Brain) StepFunction() {
 	firingNeurons := 0
-	for nIndex, sigs := range b.pendingSignals {
+	for neuronID, sigs := range b.pendingSignals {
 		// A neuron only fires when it receives at least 2 inputs
-		// Will need to question this assumption for vision neurons
 		if len(sigs) >= 2 {
-			go b.neurons[nIndex].Fire(b.sigChan, sigs)
+			go b.neurons[neuronID].Fire(b.sigChan, sigs)
 			firingNeurons++
 		}
 	}
@@ -60,9 +69,12 @@ func (b *Brain) StepFunction() {
 
 	for i := 0; i < firingNeurons; i++ {
 		signal := <-b.sigChan
-		for nIndex := range signal.nIndicies {
-			b.pendingSignals[nIndex] = append(b.pendingSignals[nIndex], signal.val)
+		for neuronID := range signal.nIndicies {
+			// Possible to have a hanging synapse. Not ideal
+			if _, exists := b.neurons[neuronID]; !exists {
+				continue
+			}
+			b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], signal.val)
 		}
 	}
-
 }

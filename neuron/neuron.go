@@ -12,33 +12,11 @@ type void struct{}
 
 type IntSet = map[int]void
 
+var member void
+
 type Signal struct {
 	val       SignalType
 	nIndicies IntSet
-}
-
-// Neuron docs
-type Neuron interface {
-	// Trigger downstream
-	Fire(sigChan chan Signal, sigs []SignalType)
-
-	// Operate on inputs
-	Operate(sigs []SignalType) SignalType
-}
-
-// AbstractNeuron docs
-type AbstractNeuron struct {
-	Neuron
-
-	downstream IntSet
-}
-
-// Fire fires the neuron if there are at least 2 inputs.
-func (a *AbstractNeuron) Fire(sigChan chan Signal, sigs []SignalType) {
-	sigChan <- Signal{
-		val:       a.Operate(sigs),
-		nIndicies: a.downstream,
-	}
 }
 
 // OperatorType for genetic neurons
@@ -56,8 +34,6 @@ const (
 	TRUTH
 	FALSIFY
 )
-
-const numOps = 10
 
 func (op OperatorType) operate(a, b SignalType) SignalType {
 	switch op {
@@ -93,42 +69,52 @@ func interpretOp(x int) OperatorType {
 	return ops[x]
 }
 
-// Genetic implements Neuron
-type Genetic struct {
-	AbstractNeuron
-
-	op OperatorType
+type Snippet struct {
+	Op       OperatorType
+	Synapses IntSet
 }
 
-// Operate on a list of signals
-func (g *Genetic) Operate(sigs []SignalType) SignalType {
-	finalSignal := g.op.operate(sigs[0], sigs[1])
-	for i := 2; i < len(sigs); i++ {
-		finalSignal = g.op.operate(finalSignal, sigs[i])
-	}
-	return finalSignal
+func (s *Snippet) SetOp(op int) {
+	s.Op = interpretOp(op)
 }
 
-var member void
+func (s *Snippet) AddSynapse(id int) {
+	s.Synapses[id] = member
+}
 
-// Grow creates a GeneticNeuron from a snippet of DNA
-func Grow(snippet, numNeurons int) *Genetic {
-	op := interpretOp(snippet % numOps)
+func (s *Snippet) RemoveSynapse(id int) {
+	delete(s.Synapses, id)
+}
 
-	g := Genetic{
-		op:             op,
-		AbstractNeuron: AbstractNeuron{downstream: make(IntSet)},
+func MakeSnippet(op OperatorType, synapes ...int) Snippet {
+	s := Snippet{
+		Op:       op,
+		Synapses: make(IntSet),
 	}
-	g.AbstractNeuron.Neuron = &g
+	for _, synapse := range synapes {
+		s.AddSynapse(synapse)
+	}
+	return s
+}
 
-	// Not sure if this should be -numOps or -op
-	snipLeft := snippet - numOps
-	for snipLeft > 0 {
-		nIndex := snipLeft % numNeurons
-		g.downstream[nIndex] = member
-		// Gets caught in a vortex when nIndex == numNeurons - 1
-		snipLeft -= nIndex + 1
+type Neuron struct {
+	snip Snippet
+}
+
+// Fire fires the neuron if there are at least 2 inputs.
+func (n Neuron) Fire(sigChan chan Signal, sigs []SignalType) {
+	// Will need to question this assumption for vision neurons
+	if len(sigs) < 2 {
+		return
 	}
 
-	return &g
+	signal := sigs[0]
+	for i := 1; i < len(sigs); i++ {
+		signal = n.snip.Op.operate(signal, sigs[i])
+	}
+
+	sigChan <- Signal{
+		val:       signal,
+		nIndicies: n.snip.Synapses,
+	}
 }
