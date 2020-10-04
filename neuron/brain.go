@@ -88,10 +88,10 @@ func (d *DNA) PrettyPrint() string {
 			continue
 		}
 		if _, exists := d.visionIDs[id]; exists {
-			s += "(V)-"
+			s += "(V)="
 		}
 		if _, exists := d.motorIDs[id]; exists {
-			s += "(M)-"
+			s += "(M)="
 		}
 		s += fmt.Sprintf("%d:%v[", id, snip.Op)
 		for synapse := range snip.Synapses {

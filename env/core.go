@@ -16,18 +16,18 @@ type EnvironmentConfig struct {
 func DefaultEnvConfig() EnvironmentConfig {
 	return EnvironmentConfig{
 		Pconf: neuron.PlaygroundConfig{
-			NumSpecies:       100,
-			NumGensPerPlay:   10,
-			DnaSeedSnippets:  10,
+			NumSpecies:       250,
+			NumGensPerPlay:   200,
+			DnaSeedSnippets:  50,
 			DnaSeedMutations: 20,
-			WinnerRatio:      2,
-			MaxStepsPerGen:   200,
+			WinnerRatio:      4,
+			MaxStepsPerGen:   500,
 		},
-		NumPlaygrounds: 20,
+		NumPlaygrounds: 1,
 	}
 }
 
-func RunEnvironment(econf EnvironmentConfig) {
+func RunEnvironment(econf EnvironmentConfig) *neuron.DNA {
 	var dna *neuron.DNA
 
 	for p := 0; p < econf.NumPlaygrounds; p++ {
@@ -46,4 +46,6 @@ func RunEnvironment(econf EnvironmentConfig) {
 		moves := neuron.FireBrainBlock(dna, inputs, econf.Pconf.MaxStepsPerGen)
 		fmt.Printf("Play %d: move %v from %s\n", p, moves, dna.PrettyPrint())
 	}
+
+	return dna
 }

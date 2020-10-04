@@ -23,9 +23,9 @@ type Signal struct {
 type OperatorType int
 
 const (
-	ADD OperatorType = iota
-	MULTIPLY
-	AND
+	// ADD
+	// MULTIPLY
+	AND OperatorType = iota
 	NAND
 	OR
 	NOR
@@ -35,12 +35,14 @@ const (
 	FALSIFY
 )
 
+const NUM_OPS = 8
+
 func (op OperatorType) operate(a, b SignalType) SignalType {
 	switch op {
-	case ADD:
-		return a + b
-	case MULTIPLY:
-		return a * b
+	// case ADD:
+	// 	return a + b
+	// case MULTIPLY:
+	// 	return a * b
 	case AND:
 		return a & b
 	case NAND:
@@ -65,7 +67,8 @@ func (op OperatorType) operate(a, b SignalType) SignalType {
 }
 
 func interpretOp(x int) OperatorType {
-	ops := [...]OperatorType{ADD, MULTIPLY, AND, NAND, OR, NOR, XOR, IFF, TRUTH, FALSIFY}
+	// ADD, MULTIPLY
+	ops := [...]OperatorType{AND, NAND, OR, NOR, XOR, IFF, TRUTH, FALSIFY}
 	return ops[x]
 }
 

@@ -7,12 +7,12 @@ import (
 )
 
 func TestOperators(t *testing.T) {
-	if got := ADD.operate(3, 7); got != 10 {
-		t.Errorf("Got wrong ADD value: %v", got)
-	}
-	if got := MULTIPLY.operate(3, 7); got != 21 {
-		t.Errorf("Got wrong MULTIPLY value: %v", got)
-	}
+	// if got := ADD.operate(3, 7); got != 10 {
+	// 	t.Errorf("Got wrong ADD value: %v", got)
+	// }
+	// if got := MULTIPLY.operate(3, 7); got != 21 {
+	// 	t.Errorf("Got wrong MULTIPLY value: %v", got)
+	// }
 	if got := AND.operate(9, 14); got != 8 {
 		t.Errorf("Got wrong AND value: %v", got)
 	}
@@ -39,11 +39,11 @@ func TestOperators(t *testing.T) {
 	}
 }
 
-func TestOverflow(t *testing.T) {
-	if got := MULTIPLY.operate(20, 20); got != (20*20)-256 {
-		t.Errorf("Got wrong MULTIPLY value: %v", got)
-	}
-}
+// func TestOverflow(t *testing.T) {
+// 	if got := MULTIPLY.operate(20, 20); got != (20*20)-(math.MaxUint8+1) {
+// 		t.Errorf("Got wrong MULTIPLY value: %v", got)
+// 	}
+// }
 
 func TestSignalingPathway(t *testing.T) {
 	sigChan := make(chan Signal)

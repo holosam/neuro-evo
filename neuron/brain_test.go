@@ -23,7 +23,7 @@ func SimpleTestDNA() *DNA {
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
 	d.AddSnippet(0).AddSynapse(1)
-	d.AddSnippet(9).AddSynapse(0)
+	d.AddSnippet(7).AddSynapse(0)
 	b := Flourish(d)
 
 	sigs := []SignalType{1, 2, 3, 4, 5}

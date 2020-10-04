@@ -77,7 +77,8 @@ func (p *Playground) SimulatePlayground(envInputs []SignalType) *DNA {
 		}
 
 		p.setNextGenCodes(scores)
-		fmt.Printf("Gen %d: best score %d from dna %s\n", i, minScore, p.codes[0].PrettyPrint())
+		// fmt.Printf("Gen %d: best score %d from dna %s\n", i, minScore, p.codes[0].PrettyPrint())
+		fmt.Printf("Gen %d: best score %d\n", i, minScore)
 	}
 
 	return p.codes[0].DeepCopy()
@@ -120,9 +121,18 @@ func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
 func (p *Playground) scoreResult(id int, result *BrainResult, inputs []SignalType) SpeciesScore {
 	score := 0
 	if len(result.moves) > 0 {
-		score += 1000000 * p.config.AccuracyFn(inputs, result.moves)
-		score += 1000 * result.steps
-		score += dnaComplexity(p.codes[id])
+		accScore := p.config.AccuracyFn(inputs, result.moves)
+		// An accuracy score of 0 means this is the ideal output.
+		// Prioritize getting a high accuracy first before paring down.
+		score = accScore
+
+		// if accScore != 0 {
+		// 	score = accScore * 1000000
+		// } else {
+		// 	score += 1000 * result.steps
+		// 	score += dnaComplexity(p.codes[id])
+		// }
+
 	} else {
 		score = math.MaxInt32
 	}
@@ -133,7 +143,7 @@ func (p *Playground) scoreResult(id int, result *BrainResult, inputs []SignalTyp
 }
 
 func dnaComplexity(dna *DNA) int {
-	complexity := 0
+	complexity := len(dna.visionIDs) + len(dna.motorIDs)
 	for _, snip := range dna.snips {
 		complexity += 1 + len(snip.Synapses)
 	}
@@ -143,7 +153,7 @@ func dnaComplexity(dna *DNA) int {
 func (p *Playground) initRandDNA() *DNA {
 	dna := NewDNA()
 	for i := 0; i < p.config.DnaSeedSnippets; i++ {
-		dna.AddSnippet(p.rnd.Intn(10))
+		dna.AddSnippet(p.rnd.Intn(NUM_OPS))
 	}
 	dna.AddVisionId(0)
 	dna.AddMotorId(p.config.DnaSeedSnippets - 1)
@@ -156,14 +166,15 @@ func (p *Playground) initRandDNA() *DNA {
 
 func (p *Playground) mutateDNA(dna *DNA) {
 	if p.rnd.Float32() < 0.3 {
-		dna.AddSnippet(p.rnd.Intn(10))
+		dna.AddSnippet(p.rnd.Intn(NUM_OPS))
 	}
 
 	for snipIndex, snip := range dna.snips {
-		if p.rnd.Float32() < 0.03 {
-			dna.DeleteSnippet(snipIndex)
-			continue
-		}
+		// if p.rnd.Float32() < 0.01 {
+		// 	dna.DeleteSnippet(snipIndex)
+		// 	continue
+		// }
+
 		if p.rnd.Float32() < 0.02 {
 			dna.AddVisionId(snipIndex)
 		}
@@ -182,17 +193,17 @@ func (p *Playground) mutateDNA(dna *DNA) {
 			}
 		}
 
-		if p.rnd.Float32() < 0.05 {
-			snip.SetOp(p.rnd.Intn(10))
+		if p.rnd.Float32() < 0.10 {
+			snip.SetOp(p.rnd.Intn(NUM_OPS))
 		}
-		if p.rnd.Float32() < 0.15 {
+		if p.rnd.Float32() < 0.10 {
 			snip.AddSynapse(p.randSnippetId(dna))
 		}
-		for synapseIndex := range snip.Synapses {
-			if p.rnd.Float32() < 0.05 {
-				snip.RemoveSynapse(synapseIndex)
-			}
-		}
+		// for synapseIndex := range snip.Synapses {
+		// 	if p.rnd.Float32() < 0.05 {
+		// 		snip.RemoveSynapse(synapseIndex)
+		// 	}
+		// }
 	}
 }
 
