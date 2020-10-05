@@ -15,9 +15,10 @@ func TestFireBrain(t *testing.T) {
 	}
 	if got := len(result.moves); got != 1 {
 		t.Errorf("Want 1, got %d", got)
-	}
-	if got := result.moves; got[0] != 6 {
-		t.Errorf("Want 6, got %v", got)
+	} else {
+		if result.moves[0] != 3 {
+			t.Errorf("Want 3, got %v", result.moves[0])
+		}
 	}
 }
 
@@ -27,7 +28,7 @@ func TestRunGeneration(t *testing.T) {
 	codes[1] = SimpleTestDNA()
 
 	results := RunGeneration(codes, []SignalType{1, 2}, 10)
-	if got := results[1].moves; got[0] != 6 {
-		t.Errorf("Want 6, got %v", got)
+	if got := results[1].moves; got[0] != 3 {
+		t.Errorf("Want 3, got %v", got)
 	}
 }

@@ -3,23 +3,22 @@ package neuron
 import (
 	"log"
 	"math"
+	"sync"
 )
 
-// SignalType is the value held in a Neuron
-type SignalType = uint8
+// IDType standardizes the type of IDs used everywhere, so they can
+// be distingushed from normal int values.
+type IDType = int
 
 type void struct{}
-type IntSet = map[int]void
+
+// IDSet is a set of ids. An insert looks like `set[id] = member`
+type IDSet = map[IDType]void
 
 var member void
 
-type Signal struct {
-	active   bool
-	val      SignalType
-	synapses IntSet
-}
-
-// OperatorType for genetic neurons
+// OperatorType enum for different commutative operations that neurons
+// can perform on their inputs.
 type OperatorType int
 
 const (
@@ -35,7 +34,7 @@ const (
 	FALSIFY
 )
 
-const NUM_OPS = 8
+const NumOps = 8
 
 func (op OperatorType) operate(a, b SignalType) SignalType {
 	switch op {
@@ -56,8 +55,7 @@ func (op OperatorType) operate(a, b SignalType) SignalType {
 	case IFF:
 		return ^(a ^ b)
 	case TRUTH:
-		// Note this will need to be changed if SignalType does.
-		return math.MaxUint8
+		return MaxSignal()
 	case FALSIFY:
 		return 0
 	default:
@@ -67,36 +65,40 @@ func (op OperatorType) operate(a, b SignalType) SignalType {
 }
 
 func interpretOp(x int) OperatorType {
-	// ADD, MULTIPLY
 	ops := [...]OperatorType{AND, NAND, OR, NOR, XOR, IFF, TRUTH, FALSIFY}
 	return ops[x]
 }
 
+// Snippet is a piece of DNA holding everything needed to create a Neuron.
 type Snippet struct {
+	ID       IDType
 	Op       OperatorType
-	Synapses IntSet
+	Synapses IDSet
 }
 
 func (s *Snippet) SetOp(opVal int) {
 	s.Op = interpretOp(opVal)
 }
 
-func (s *Snippet) AddSynapse(id int) {
-	s.Synapses[id] = member
+func (s *Snippet) AddSynapse(id IDType) {
+	if id != s.ID {
+		s.Synapses[id] = member
+	}
 }
 
-func (s *Snippet) RemoveSynapse(id int) {
+func (s *Snippet) RemoveSynapse(id IDType) {
 	delete(s.Synapses, id)
 }
 
-func MakeSnippet(opVal int, synapes ...int) *Snippet {
-	return MakeSnippetOp(interpretOp(opVal), synapes...)
+func MakeSnippet(id IDType, opVal int, synapes ...IDType) *Snippet {
+	return MakeSnippetOp(id, interpretOp(opVal), synapes...)
 }
 
-func MakeSnippetOp(op OperatorType, synapes ...int) *Snippet {
+func MakeSnippetOp(id IDType, op OperatorType, synapes ...IDType) *Snippet {
 	s := Snippet{
+		ID:       id,
 		Op:       op,
-		Synapses: make(IntSet),
+		Synapses: make(IDSet),
 	}
 	for _, synapse := range synapes {
 		s.AddSynapse(synapse)
@@ -104,32 +106,59 @@ func MakeSnippetOp(op OperatorType, synapes ...int) *Snippet {
 	return &s
 }
 
-type Neuron struct {
-	snip *Snippet
+// SignalType is the value held in a neuron
+type SignalType = uint8
 
-	sigChan chan Signal
-
-	isVision bool
+// MaxSignal returns the highest number for the signal type, to
+// avoid having to change math.Max___ everywhere in the code.
+func MaxSignal() SignalType {
+	return math.MaxUint8
 }
 
-// Fire fires the neuron if there are at least 2 inputs.
-func (n *Neuron) Fire(sigs []SignalType) {
+// Signal holds a value that this neuron is firing off.
+type Signal struct {
+	isActive bool
+	signal   SignalType
+	source   *Snippet
+}
+
+type Neuron struct {
+	snip     *Snippet
+	sigChan  chan Signal
+	isVision bool
+
+	mu             sync.Mutex
+	pendingSignals []SignalType
+}
+
+func (n *Neuron) ReceiveSignal(input SignalType) {
+	n.mu.Lock()
+	n.pendingSignals = append(n.pendingSignals, input)
+	n.mu.Unlock()
+}
+
+func (n *Neuron) Fire() {
+	n.mu.Lock()
 	// Vision neurons only need 1 input signal, others need 2.
-	if len(sigs) == 0 || (len(sigs) == 1 && !n.isVision) {
+	if len(n.pendingSignals) == 0 || (len(n.pendingSignals) == 1 && !n.isVision) {
 		// Send an empty struct on the channel to alert the caller
 		// that there is nothing to do.
+		n.mu.Unlock()
 		n.sigChan <- Signal{}
 		return
 	}
 
-	sig := sigs[0]
-	for i := 1; i < len(sigs); i++ {
-		sig = n.snip.Op.operate(sig, sigs[i])
+	output := n.pendingSignals[0]
+	for i := 1; i < len(n.pendingSignals); i++ {
+		output = n.snip.Op.operate(output, n.pendingSignals[i])
 	}
 
+	n.pendingSignals = make([]SignalType, 0)
+	n.mu.Unlock()
+
 	n.sigChan <- Signal{
-		active:   true,
-		val:      sig,
-		synapses: n.snip.Synapses,
+		isActive: true,
+		signal:   output,
+		source:   n.snip,
 	}
 }

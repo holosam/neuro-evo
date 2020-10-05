@@ -48,45 +48,46 @@ func TestOperators(t *testing.T) {
 func TestSignalingPathway(t *testing.T) {
 	sigChan := make(chan Signal)
 	n := Neuron{
-		snip:    MakeSnippet(0, 1, 2),
+		snip:    MakeSnippet(0, 2, 1, 2),
 		sigChan: sigChan,
 	}
 
 	go n.Fire([]SignalType{1, 2, 3, 4, 5})
 	sig := <-sigChan
 
-	if !reflect.DeepEqual(sig.synapses, n.snip.Synapses) {
-		t.Errorf("Want %v, got %v", sig.synapses, n.snip.Synapses)
+	if !reflect.DeepEqual(sig.snippet.Synapses, n.snip.Synapses) {
+		t.Errorf("Want %v, got %v", sig.snippet.Synapses, n.snip.Synapses)
 	}
-	if sig.val != 15 {
-		t.Errorf("Want 15, got %d", sig.val)
+	want := SignalType(7)
+	if sig.signal != want {
+		t.Errorf("Want %d, got %d", want, sig.signal)
 	}
 }
 
 func TestVision(t *testing.T) {
 	sigChan := make(chan Signal)
 	n := Neuron{
-		snip:     MakeSnippet(0, 1, 2),
+		snip:     MakeSnippet(0, 0, 1, 2),
 		sigChan:  sigChan,
 		isVision: true,
 	}
 
 	go n.Fire([]SignalType{})
 	sig := <-sigChan
-	if got := sig.active; got {
+	if got := sig.isActive; got {
 		t.Errorf("Want inactive signal, got active=%v", got)
 	}
 
 	go n.Fire([]SignalType{1})
 	sig = <-sigChan
-	if got := sig.val; got != 1 {
+	if got := sig.signal; got != 1 {
 		t.Errorf("Want 1, got %d", got)
 	}
 
 	n.isVision = false
 	go n.Fire([]SignalType{1})
 	sig = <-sigChan
-	if got := sig.active; got {
+	if got := sig.isActive; got {
 		t.Errorf("Want inactive signal, got active=%v", got)
 	}
 }

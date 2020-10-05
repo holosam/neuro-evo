@@ -16,34 +16,43 @@ type EnvironmentConfig struct {
 func DefaultEnvConfig() EnvironmentConfig {
 	return EnvironmentConfig{
 		Pconf: neuron.PlaygroundConfig{
-			NumSpecies:       250,
-			NumGensPerPlay:   200,
-			DnaSeedSnippets:  50,
-			DnaSeedMutations: 20,
-			WinnerRatio:      4,
-			MaxStepsPerGen:   500,
+			NumSpecies:            500,
+			MaxGensPerPlay:        5,
+			DnaSeedSnippets:       50,
+			DnaSeedMutations:      0,
+			MaxStepsPerGen:        50,
+			ContinueAfterAccurate: false,
 		},
-		NumPlaygrounds: 1,
+		NumPlaygrounds: 1000,
 	}
 }
 
 func RunEnvironment(econf EnvironmentConfig) *neuron.DNA {
 	var dna *neuron.DNA
 
-	for p := 0; p < econf.NumPlaygrounds; p++ {
-		play := neuron.NewPlayground(econf.Pconf)
+	// accurateSpecies := 0
 
-		if dna != nil {
-			play.SeedKnownDNA(dna)
-		} else {
-			play.SeedRandDNA()
-		}
+	play := neuron.NewPlayground(econf.Pconf)
+	play.SeedRandDNA()
+	for p := 0; p < econf.NumPlaygrounds; p++ {
+
+		// if dna != nil {
+		// 	play.SeedKnownDNA(dna)
+		// } else {
+		// 	play.SeedRandDNA()
+		// }
 
 		inputs := econf.GenInputsFn()
 		dna = play.SimulatePlayground(inputs)
 
 		// Just used to show off the final result, can be deleted at some point
 		moves := neuron.FireBrainBlock(dna, inputs, econf.Pconf.MaxStepsPerGen)
+		// if econf.Pconf.AccuracyFn(econf.GenInputsFn(), moves) == 0 {
+		// 	accurateSpecies++
+		// 	if accurateSpecies == 5 {
+		// 		econf.Pconf.ContinueAfterAccurate = true
+		// 	}
+		// }
 		fmt.Printf("Play %d: move %v from %s\n", p, moves, dna.PrettyPrint())
 	}
 

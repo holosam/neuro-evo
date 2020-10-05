@@ -1,6 +1,7 @@
 package neuron
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
@@ -42,16 +43,27 @@ func TestResultScoring(t *testing.T) {
 		steps: 20,
 	}, []SignalType{})
 
-	if got := score.score; got != 10020005 {
-		t.Errorf("Want 10020005, got %d", got)
+	want := 10000000
+	if got := score.score; got != want {
+		t.Errorf("Want %d, got %d", want, got)
+	}
+
+	score = p.scoreResult(targetID, &BrainResult{
+		id:    targetID,
+		moves: []SignalType{0, 6},
+		steps: 20,
+	}, []SignalType{})
+
+	want = 20008
+	if got := score.score; got != want {
+		t.Errorf("Want %d, got %d", want, got)
 	}
 }
 
 func TestNextGenCodes(t *testing.T) {
-	numSpecies := 10
+	numSpecies := 6
 	p := NewPlayground(PlaygroundConfig{
-		NumSpecies:  numSpecies,
-		WinnerRatio: 2,
+		NumSpecies: numSpecies,
 	})
 	p.SeedRandDNA()
 
@@ -63,14 +75,10 @@ func TestNextGenCodes(t *testing.T) {
 	want := make(map[int]*DNA, numSpecies)
 	want[0] = p.codes[0]
 	want[1] = p.codes[0]
-	want[2] = p.codes[0]
-	want[3] = p.codes[0]
-	want[4] = p.codes[0]
-	want[5] = p.codes[1]
-	want[6] = p.codes[1]
-	want[7] = p.codes[1]
-	want[8] = p.codes[2]
-	want[9] = p.codes[3]
+	want[2] = p.codes[1]
+	want[3] = p.codes[1]
+	want[4] = p.codes[2]
+	want[5] = p.codes[2]
 
 	p.setNextGenCodes(scores)
 
@@ -82,13 +90,15 @@ func TestNextGenCodes(t *testing.T) {
 func TestSimulatePlayground(t *testing.T) {
 	p := NewPlayground(PlaygroundConfig{
 		NumSpecies:       10,
-		NumGensPerPlay:   10,
-		WinnerRatio:      2,
+		MaxGensPerPlay:   10,
 		DnaSeedSnippets:  10,
 		DnaSeedMutations: 10,
 		MaxStepsPerGen:   20,
 
 		AccuracyFn: func(inputs []SignalType, outputs []SignalType) int {
+			if len(outputs) == 0 {
+				return math.MaxInt32
+			}
 			return int(outputs[0])
 		},
 	})

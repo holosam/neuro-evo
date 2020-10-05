@@ -8,13 +8,13 @@ import (
 // Two vision neurons pointing at a motor neuron.
 func SimpleTestDNA() *DNA {
 	d := NewDNA()
-	d.AddSnippet(0).AddSynapse(2)
+	d.AddSnippet(2).AddSynapse(2)
 	d.AddVisionId(0)
 
-	d.AddSnippet(0).AddSynapse(2)
+	d.AddSnippet(2).AddSynapse(2)
 	d.AddVisionId(1)
 
-	d.AddSnippet(0)
+	d.AddSnippet(2)
 	d.AddMotorId(2)
 
 	return d
@@ -22,7 +22,7 @@ func SimpleTestDNA() *DNA {
 
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
-	d.AddSnippet(0).AddSynapse(1)
+	d.AddSnippet(2).AddSynapse(1)
 	d.AddSnippet(7).AddSynapse(0)
 	b := Flourish(d)
 
@@ -37,8 +37,7 @@ func TestBrainStep(t *testing.T) {
 	}
 
 	want := make(map[int][]SignalType, 1)
-	want[1] = append(want[1], 15)
-
+	want[1] = append(want[1], 7)
 	if !reflect.DeepEqual(want, b.pendingSignals) {
 		t.Errorf("Want %v, got %v", want, b.pendingSignals)
 	}
@@ -46,7 +45,7 @@ func TestBrainStep(t *testing.T) {
 
 func TestEyesight(t *testing.T) {
 	b := Flourish(SimpleTestDNA())
-	b.SeeInput(1)
+	b.SeeInput(3)
 
 	// First step fires the vision neurons and pends for the motor neuron.
 	moves := b.StepFunction()
@@ -59,7 +58,7 @@ func TestEyesight(t *testing.T) {
 	if got := len(moves); got != 1 {
 		t.Errorf("Want 1, got %d", got)
 	}
-	if got := moves[0]; got != 2 {
-		t.Errorf("Want 2, got %d", got)
+	if got := moves[0]; got != 3 {
+		t.Errorf("Want 3, got %d", got)
 	}
 }

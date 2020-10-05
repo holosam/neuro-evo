@@ -21,16 +21,27 @@ func Adder(econf EnvironmentConfig) *neuron.DNA {
 		inputs := make([]neuron.SignalType, 2)
 		for i := 0; i < 2; i++ {
 			inputs[i] = neuron.SignalType(rng.Intn(math.MaxUint8))
+			// inputs[i] = neuron.SignalType(rng.Intn(8))
 		}
 		return inputs
 	}
 
 	econf.Pconf.AccuracyFn = func(inputs []neuron.SignalType, outputs []neuron.SignalType) int {
+		if len(outputs) != 1 {
+			return math.MaxInt32
+		}
 		expectedResult := neuron.SignalType(0)
 		for _, sig := range inputs {
 			expectedResult += sig
 		}
-		return int(math.Abs(float64(expectedResult-outputs[0]))) + (10 * (len(outputs) - 1))
+		// return int(math.Abs(float64(expectedResult-outputs[0]))) + (10 * (len(outputs) - 1))
+		return int(math.Abs(float64(expectedResult - outputs[0])))
+
+		// if outputs[0] == expectedResult {
+		// 	return 0
+		// } else {
+		// 	return math.MaxInt16
+		// }
 	}
 
 	return RunEnvironment(econf)
