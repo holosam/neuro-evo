@@ -16,22 +16,19 @@ type PlaygroundConfig struct {
 	DnaSeedSnippets  int
 	DnaSeedMutations int
 
-	ContinueAfterAccurate bool
-
-	// Generation
-	MaxStepsPerGen int
+	gconf GenerationConfig
 
 	AccuracyFn AccuracyFunc
 }
 
 type Playground struct {
-	codes  map[int]*DNA
+	codes  map[IDType]*DNA
 	config PlaygroundConfig
 	rnd    *rand.Rand
 }
 
 type SpeciesScore struct {
-	id    int
+	id    IDType
 	score int
 }
 
@@ -127,12 +124,8 @@ func (p *Playground) setNextGenCodes(scores []SpeciesScore) {
 }
 
 func (p *Playground) scoreResult(id int, result *BrainResult, inputs []SignalType) SpeciesScore {
-	accScore := p.config.AccuracyFn(inputs, result.moves)
 	// An accuracy score of 0 means this is the ideal output.
 	// Prioritize getting a high accuracy first before paring down.
-	score := 0
-
-	score = accScore
 	// if accScore != 0 {
 	// 	score = accScore * 1000
 	// 	score -= result.steps
@@ -143,13 +136,13 @@ func (p *Playground) scoreResult(id int, result *BrainResult, inputs []SignalTyp
 
 	return SpeciesScore{
 		id:    id,
-		score: score,
+		score: p.config.AccuracyFn(inputs, result.moves),
 	}
 }
 
 func dnaComplexity(dna *DNA) int {
 	complexity := len(dna.visionIDs) + len(dna.motorIDs)
-	for _, snip := range dna.snips {
+	for _, snip := range dna.snippets {
 		complexity += 1 + len(snip.Synapses)
 	}
 	return complexity
@@ -158,12 +151,12 @@ func dnaComplexity(dna *DNA) int {
 func (p *Playground) initRandDNA() *DNA {
 	dna := NewDNA()
 	for i := 0; i < p.config.DnaSeedSnippets; i++ {
-		dna.AddSnippet(p.rnd.Intn(NUM_OPS))
+		dna.AddSnippet(p.rnd.Intn(NumOps))
 	}
 	// Just winging this.
-	dna.AddVisionId(0)
-	dna.AddVisionId(1)
-	dna.AddMotorId(p.config.DnaSeedSnippets - 1)
+	dna.visionIDs = append(dna.visionIDs, 0)
+	dna.visionIDs = append(dna.visionIDs, 1)
+	dna.motorIDs = append(dna.visionIDs, p.config.DnaSeedSnippets-1)
 
 	for i := 0; i < p.config.DnaSeedMutations; i++ {
 		p.mutateDNA(dna)

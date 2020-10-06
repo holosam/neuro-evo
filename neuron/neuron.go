@@ -90,17 +90,17 @@ func (s *Snippet) RemoveSynapse(id IDType) {
 	delete(s.Synapses, id)
 }
 
-func MakeSnippet(id IDType, opVal int, synapes ...IDType) *Snippet {
-	return MakeSnippetOp(id, interpretOp(opVal), synapes...)
+func MakeSnippet(id IDType, opVal int, synapses ...IDType) *Snippet {
+	return MakeSnippetOp(id, interpretOp(opVal), synapses...)
 }
 
-func MakeSnippetOp(id IDType, op OperatorType, synapes ...IDType) *Snippet {
+func MakeSnippetOp(id IDType, op OperatorType, synapses ...IDType) *Snippet {
 	s := Snippet{
 		ID:       id,
 		Op:       op,
 		Synapses: make(IDSet),
 	}
-	for _, synapse := range synapes {
+	for _, synapse := range synapses {
 		s.AddSynapse(synapse)
 	}
 	return &s

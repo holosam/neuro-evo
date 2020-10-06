@@ -1,7 +1,6 @@
 package neuron
 
 import (
-	"math"
 	"reflect"
 	"testing"
 )
@@ -16,34 +15,28 @@ func TestOperators(t *testing.T) {
 	if got := AND.operate(9, 14); got != 8 {
 		t.Errorf("Got wrong AND value: %v", got)
 	}
-	if got := NAND.operate(math.MaxUint8, math.MaxUint8-4); got != 4 {
+	if got := NAND.operate(MaxSignal(), MaxSignal()-4); got != 4 {
 		t.Errorf("Got wrong NAND value: %v", got)
 	}
 	if got := OR.operate(9, 10); got != 11 {
 		t.Errorf("Got wrong OR value: %v", got)
 	}
-	if got := NOR.operate(math.MaxUint8-4, math.MaxUint8-4); got != 4 {
+	if got := NOR.operate(MaxSignal()-4, MaxSignal()-4); got != 4 {
 		t.Errorf("Got wrong NOR value: %v", got)
 	}
 	if got := XOR.operate(11, 12); got != 7 {
 		t.Errorf("Got wrong XOR value: %v", got)
 	}
-	if got := IFF.operate(math.MaxUint8, 4); got != 4 {
+	if got := IFF.operate(MaxSignal(), 4); got != 4 {
 		t.Errorf("Got wrong IFF value: %v", got)
 	}
-	if got := TRUTH.operate(3, 7); got != math.MaxUint8 {
+	if got := TRUTH.operate(3, 7); got != MaxSignal() {
 		t.Errorf("Got wrong TRUTH value: %v", got)
 	}
 	if got := FALSIFY.operate(3, 7); got != 0 {
 		t.Errorf("Got wrong FALSIFY value: %v", got)
 	}
 }
-
-// func TestOverflow(t *testing.T) {
-// 	if got := MULTIPLY.operate(20, 20); got != (20*20)-(math.MaxUint8+1) {
-// 		t.Errorf("Got wrong MULTIPLY value: %v", got)
-// 	}
-// }
 
 func TestSignalingPathway(t *testing.T) {
 	sigChan := make(chan Signal)
@@ -52,11 +45,16 @@ func TestSignalingPathway(t *testing.T) {
 		sigChan: sigChan,
 	}
 
-	go n.Fire([]SignalType{1, 2, 3, 4, 5})
+	n.ReceiveSignal(1)
+	n.ReceiveSignal(2)
+	n.ReceiveSignal(3)
+	n.ReceiveSignal(4)
+	n.ReceiveSignal(5)
+	go n.Fire()
 	sig := <-sigChan
 
-	if !reflect.DeepEqual(sig.snippet.Synapses, n.snip.Synapses) {
-		t.Errorf("Want %v, got %v", sig.snippet.Synapses, n.snip.Synapses)
+	if !reflect.DeepEqual(sig.source.Synapses, n.snip.Synapses) {
+		t.Errorf("Want %v, got %v", sig.source.Synapses, n.snip.Synapses)
 	}
 	want := SignalType(7)
 	if sig.signal != want {
@@ -72,20 +70,22 @@ func TestVision(t *testing.T) {
 		isVision: true,
 	}
 
-	go n.Fire([]SignalType{})
+	go n.Fire()
 	sig := <-sigChan
 	if got := sig.isActive; got {
 		t.Errorf("Want inactive signal, got active=%v", got)
 	}
 
-	go n.Fire([]SignalType{1})
+	n.ReceiveSignal(1)
+	go n.Fire()
 	sig = <-sigChan
 	if got := sig.signal; got != 1 {
 		t.Errorf("Want 1, got %d", got)
 	}
 
 	n.isVision = false
-	go n.Fire([]SignalType{1})
+	n.ReceiveSignal(1)
+	go n.Fire()
 	sig = <-sigChan
 	if got := sig.isActive; got {
 		t.Errorf("Want inactive signal, got active=%v", got)
