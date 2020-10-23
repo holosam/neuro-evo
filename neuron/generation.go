@@ -28,11 +28,13 @@ func NewGeneration(gconf GenerationConfig, codes map[IDType]*DNA) *Generation {
 	return g
 }
 
-func (g *Generation) FireBrains(inputs map[IDType][]SignalType) map[IDType]*BrainResult {
+// This other version of the function was for competing variants.
+// func (g *Generation) FireBrains(inputs map[IDType][]SignalType) map[IDType]*BrainResult {
+func (g *Generation) FireBrains(inputs []SignalType) map[IDType]*BrainResult {
 	// Simulate all brains in separate goroutines.
 	resChan := make(chan BrainResult)
 	for id := range g.brains {
-		go g.fireBrain(id, inputs[id], resChan)
+		go g.fireBrain(id, inputs, resChan)
 	}
 
 	// Wait for all the results to come in before returning.

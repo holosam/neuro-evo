@@ -112,6 +112,18 @@ func (d *DNA) RemoveSynapse(snipID, synID IDType) {
 	}
 }
 
+func (d *DNA) AddVisionID(id IDType) {
+	if !d.visionIDs.HasID(id) {
+		d.visionIDs.InsertID(id)
+	}
+}
+
+func (d *DNA) AddMotorID(id IDType) {
+	if !d.motorIDs.HasID(id) {
+		d.motorIDs.InsertID(id)
+	}
+}
+
 func (d *DNA) PrettyPrint() string {
 	s := ""
 	sortedSnips := make([]*Snippet, d.nextID)

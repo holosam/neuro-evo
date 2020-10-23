@@ -9,13 +9,13 @@ import (
 func SimpleTestDNA() *DNA {
 	d := NewDNA()
 	d.AddSnippet(2).AddSynapse(2)
-	d.AddVisionId(0)
+	d.AddVisionID(0)
 
 	d.AddSnippet(2).AddSynapse(2)
-	d.AddVisionId(1)
+	d.AddVisionID(1)
 
 	d.AddSnippet(2)
-	d.AddMotorId(2)
+	d.AddMotorID(2)
 
 	return d
 }
@@ -23,17 +23,15 @@ func SimpleTestDNA() *DNA {
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
 	d.AddSnippet(2).AddSynapse(1)
-	d.AddSnippet(7).AddSynapse(0)
+	d.AddSnippet(7)
 	b := Flourish(d)
 
-	sigs := []SignalType{1, 2, 3, 4, 5}
-	for _, sig := range sigs {
-		b.pendingSignals[0] = append(b.pendingSignals[0], sig)
-	}
+	b.addPendingSignal(0, SignalType(1))
+	b.addPendingSignal(0, SignalType(2))
 	moves := b.StepFunction()
 
-	if got := len(moves); got != 0 {
-		t.Errorf("Want 0, got %d", got)
+	if want, got := 0, len(moves); want != got {
+		t.Errorf("Want %d, got %d", want, got)
 	}
 
 	want := make(map[int][]SignalType, 1)
@@ -45,7 +43,7 @@ func TestBrainStep(t *testing.T) {
 
 func TestEyesight(t *testing.T) {
 	b := Flourish(SimpleTestDNA())
-	b.SeeInput(3)
+	b.SeeInput([]SignalType{3})
 
 	// First step fires the vision neurons and pends for the motor neuron.
 	moves := b.StepFunction()

@@ -11,18 +11,21 @@ func TestRandDNA(t *testing.T) {
 	p := NewPlayground(PlaygroundConfig{
 		NumSpecies:       1,
 		DnaSeedSnippets:  10,
-		DnaSeedMutations: 10,
+		DnaSeedMutations: 5,
+		GenInputsFn: func(round int) []SignalType {
+			return []SignalType{1}
+		},
 	})
 	p.SeedRandDNA()
 	dna := p.codes[0]
 
-	if got := len(dna.snips); got < 1 {
+	if got := len(dna.snippets); got < 1 {
 		t.Errorf("Want at least 1, got %d", got)
 	}
-	if got := len(dna.visionIDs); got < 1 {
+	if got := dna.visionIDs.Length(); got != 1 {
 		t.Errorf("Want at least 1, got %d", got)
 	}
-	if got := len(dna.motorIDs); got < 1 {
+	if got := dna.motorIDs.Length(); got != 1 {
 		t.Errorf("Want at least 1, got %d", got)
 	}
 }
