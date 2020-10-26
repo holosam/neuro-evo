@@ -1,6 +1,7 @@
 package neuron
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -10,19 +11,18 @@ func TestFireBrain(t *testing.T) {
 	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
 
 	resChan := make(chan BrainResult)
-	g.fireBrain(0, []SignalType{1, 2}, resChan)
-	result := <-resChan
+	go g.fireBrain(0, []SignalType{1, 2}, resChan)
+	got := <-resChan
 
-	// Seeing input doesn't count as a step.
-	if got := result.steps; got != 1 {
-		t.Errorf("Want 2, got %d", got)
+	want := BrainResult{
+		id:      0,
+		inputs:  []SignalType{1, 2},
+		outputs: []SignalType{3},
+		steps:   2,
 	}
-	if got := len(result.outputs); got != 1 {
-		t.Errorf("Want 1, got %d", got)
-	} else {
-		if result.outputs[0] != 3 {
-			t.Errorf("Want 3, got %v", result.outputs[0])
-		}
+
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("Want %v, got %v", want, got)
 	}
 }
 
@@ -34,7 +34,7 @@ func TestRunGeneration(t *testing.T) {
 	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
 	results := g.FireBrains([]SignalType{1, 2})
 
-	if got := results[1].outputs; got[0] != 3 {
-		t.Errorf("Want 3, got %v", got)
+	if got, want := results[1].outputs, SignalType(3); got[0] != want {
+		t.Errorf("Want %d, got %d", want, got)
 	}
 }

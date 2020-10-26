@@ -3,131 +3,157 @@ package neuron
 import (
 	"fmt"
 	"strings"
-
-	"github.com/ulule/deepcopier"
 )
 
 type IndexedIDs struct {
-	idToIndex map[IDType]int
-	indexToID map[int]IDType
+	IDToIndex map[IDType]int
+	IndexToID map[int]IDType
 }
 
 func NewIndexedIDs() *IndexedIDs {
 	return &IndexedIDs{
-		idToIndex: make(map[IDType]int),
-		indexToID: make(map[int]IDType),
+		IDToIndex: make(map[IDType]int),
+		IndexToID: make(map[int]IDType),
 	}
 }
 
 func (x *IndexedIDs) InsertID(id IDType) {
-	nextIndex := x.Length()
-	x.idToIndex[id] = nextIndex
-	x.indexToID[nextIndex] = id
+	if !x.HasID(id) {
+		nextIndex := x.Length()
+		x.IDToIndex[id] = nextIndex
+		x.IndexToID[nextIndex] = id
+	}
 }
 
 func (x *IndexedIDs) RemoveID(id IDType) {
-	if index, exists := x.idToIndex[id]; exists {
+	if index, exists := x.IDToIndex[id]; exists {
 		length := x.Length()
-
-		delete(x.idToIndex, id)
-		delete(x.indexToID, index)
-
-		for i := index + 1; i < length; i++ {
-			idToMove := x.indexToID[i+1]
-			x.indexToID[i] = idToMove
-			x.idToIndex[idToMove] = i
+		for i := index; i < length-1; i++ {
+			idToMove := x.IndexToID[i+1]
+			x.IndexToID[i] = idToMove
+			x.IDToIndex[idToMove] = i
 		}
+
+		delete(x.IDToIndex, id)
+		delete(x.IndexToID, length-1)
 	}
 }
 
 func (x *IndexedIDs) HasID(id IDType) bool {
-	_, ok := x.idToIndex[id]
+	_, ok := x.IDToIndex[id]
 	return ok
 }
 
 func (x *IndexedIDs) GetIndex(id IDType) int {
-	return x.idToIndex[id]
+	return x.IDToIndex[id]
 }
 
 func (x *IndexedIDs) GetId(index int) IDType {
-	return x.indexToID[index]
+	return x.IndexToID[index]
 }
 
 func (x *IndexedIDs) Length() int {
-	return len(x.idToIndex)
+	return len(x.IDToIndex)
+}
+
+func (x *IndexedIDs) Copy() *IndexedIDs {
+	c := &IndexedIDs{
+		IDToIndex: make(map[IDType]int, x.Length()),
+		IndexToID: make(map[int]IDType, x.Length()),
+	}
+	for id, index := range x.IDToIndex {
+		c.IDToIndex[id] = index
+		c.IndexToID[index] = id
+	}
+	return c
 }
 
 type DNA struct {
-	snippets map[IDType]*Snippet
-	nextID   IDType
+	Snippets map[IDType]*Snippet
+	NextID   IDType
 
-	visionIDs *IndexedIDs
-	motorIDs  *IndexedIDs
+	VisionIDs *IndexedIDs
+	MotorIDs  *IndexedIDs
 }
 
 func NewDNA() *DNA {
 	return &DNA{
-		snippets:  make(map[IDType]*Snippet),
-		nextID:    0,
-		visionIDs: NewIndexedIDs(),
-		motorIDs:  NewIndexedIDs(),
+		Snippets:  make(map[IDType]*Snippet, 0),
+		NextID:    0,
+		VisionIDs: NewIndexedIDs(),
+		MotorIDs:  NewIndexedIDs(),
 	}
 }
 
+// DeepCopy uses a library to copy all nested values to a new struct, including
+// values held by pointers. Only copies exported fields.
 func (src *DNA) DeepCopy() *DNA {
-	dst := &DNA{}
-	deepcopier.Copy(src).To(dst)
+	dst := &DNA{
+		Snippets:  make(map[IDType]*Snippet, len(src.Snippets)),
+		NextID:    src.NextID,
+		VisionIDs: src.VisionIDs.Copy(),
+		MotorIDs:  src.MotorIDs.Copy(),
+	}
+
+	for id, snippet := range src.Snippets {
+		s := MakeSnippetOp(id, snippet.Op)
+		for syn := range snippet.Synapses {
+			s.AddSynapse(syn)
+		}
+		dst.Snippets[id] = s
+	}
+
 	return dst
 }
 
 func (d *DNA) AddSnippet(opVal int) *Snippet {
-	s := MakeSnippet(d.nextID, opVal)
-	d.snippets[d.nextID] = s
-	d.nextID++
+	s := MakeSnippet(d.NextID, opVal)
+	d.Snippets[d.NextID] = s
+	d.NextID++
 	return s
 }
 
 func (d *DNA) DeleteSnippet(id IDType) {
-	delete(d.snippets, id)
+	delete(d.Snippets, id)
 
-	d.visionIDs.RemoveID(id)
-	d.motorIDs.RemoveID(id)
+	d.VisionIDs.RemoveID(id)
+	d.MotorIDs.RemoveID(id)
 
-	for _, snip := range d.snippets {
+	for _, snip := range d.Snippets {
 		snip.RemoveSynapse(id)
 	}
 }
 
 func (d *DNA) AddSynapse(snipID, synID IDType) {
-	if snip, snipExists := d.snippets[snipID]; snipExists {
-		if _, synExists := d.snippets[synID]; synExists {
+	if snip, snipExists := d.Snippets[snipID]; snipExists {
+		if _, synExists := d.Snippets[synID]; synExists {
 			snip.AddSynapse(synID)
 		}
 	}
 }
 
 func (d *DNA) RemoveSynapse(snipID, synID IDType) {
-	if snip, snipExists := d.snippets[snipID]; snipExists {
+	if snip, snipExists := d.Snippets[snipID]; snipExists {
 		snip.RemoveSynapse(synID)
 	}
 }
 
 func (d *DNA) AddVisionID(id IDType) {
-	if !d.visionIDs.HasID(id) {
-		d.visionIDs.InsertID(id)
+	if !d.VisionIDs.HasID(id) {
+		d.VisionIDs.InsertID(id)
 	}
 }
 
 func (d *DNA) AddMotorID(id IDType) {
-	if !d.motorIDs.HasID(id) {
-		d.motorIDs.InsertID(id)
+	if !d.MotorIDs.HasID(id) {
+		d.MotorIDs.InsertID(id)
 	}
 }
 
 func (d *DNA) PrettyPrint() string {
 	s := ""
-	sortedSnips := make([]*Snippet, d.nextID)
-	for id, snip := range d.snippets {
+	sortedSnips := make([]*Snippet, d.NextID)
+	for id, snip := range d.Snippets {
 		sortedSnips[id] = snip
 	}
 
@@ -136,19 +162,19 @@ func (d *DNA) PrettyPrint() string {
 			continue
 		}
 
-		if d.visionIDs.HasID(id) {
-			s += fmt.Sprintf("(V-%d)=", d.visionIDs.GetIndex(id))
+		if d.VisionIDs.HasID(id) {
+			s += fmt.Sprintf("(V%d)=", d.VisionIDs.GetIndex(id))
 		}
 
-		if d.motorIDs.HasID(id) {
-			s += fmt.Sprintf("(M-%d)=", d.motorIDs.GetIndex(id))
+		if d.MotorIDs.HasID(id) {
+			s += fmt.Sprintf("(M%d)=", d.MotorIDs.GetIndex(id))
 		}
 
 		s += fmt.Sprintf("%d:%d", id, snip.Op)
 
 		if len(snip.Synapses) > 0 {
 			s += "["
-			sortedSyns := make([]bool, d.nextID)
+			sortedSyns := make([]bool, d.NextID)
 			for synapse := range snip.Synapses {
 				sortedSyns[synapse] = true
 			}
@@ -161,6 +187,7 @@ func (d *DNA) PrettyPrint() string {
 		}
 		s += "  "
 	}
+	s = strings.TrimRight(s, " ")
 	return s
 }
 
@@ -177,25 +204,25 @@ type Brain struct {
 func Flourish(dna *DNA) *Brain {
 	b := &Brain{
 		dna:     dna,
-		neurons: make(map[IDType]*Neuron, len(dna.snippets)),
+		neurons: make(map[IDType]*Neuron, len(dna.Snippets)),
 
-		pendingSignals: make(IDSet, len(dna.snippets)),
+		pendingSignals: make(IDSet, len(dna.Snippets)),
 		sigChan:        make(chan Signal),
 		motorChan:      make(chan Signal),
 	}
 
-	for id, snip := range dna.snippets {
+	for id, snip := range dna.Snippets {
 		// Select which signal channel should be injected. Motor neurons fire a
 		// different channel.
 		selectedChan := b.sigChan
-		if dna.motorIDs.HasID(id) {
+		if dna.MotorIDs.HasID(id) {
 			selectedChan = b.motorChan
 		}
 
 		b.neurons[id] = &Neuron{
 			snip:           snip,
 			sigChan:        selectedChan,
-			isVision:       dna.visionIDs.HasID(id),
+			isVision:       dna.VisionIDs.HasID(id),
 			pendingSignals: make([]SignalType, 0),
 		}
 	}
@@ -206,7 +233,7 @@ func Flourish(dna *DNA) *Brain {
 func (b *Brain) SeeInput(sigs []SignalType) {
 	for i, sig := range sigs {
 		// Send the signal to the vision ID at the signal's index.
-		b.neurons[b.dna.visionIDs.GetId(i)].ReceiveSignal(sig)
+		b.addPendingSignal(b.dna.VisionIDs.GetId(i), sig)
 	}
 }
 
@@ -218,8 +245,8 @@ func (b *Brain) StepFunction() []SignalType {
 	}
 	// Clear pending signals before refilling.
 	b.pendingSignals = make(IDSet, len(b.neurons))
-	outputs := make([]SignalType, b.dna.motorIDs.Length())
 
+	outputs := make([]SignalType, 0)
 	for i := 0; i < expectedSignals; i++ {
 		select {
 		case signal := <-b.sigChan:
@@ -231,8 +258,13 @@ func (b *Brain) StepFunction() []SignalType {
 			}
 		case signal := <-b.motorChan:
 			if signal.isActive {
+				// Resize the outputs to handle the number of motor neurons.
+				if len(outputs) == 0 {
+					outputs = make([]SignalType, b.dna.MotorIDs.Length())
+				}
+
 				// Insert the signal at the index of the motor neuron ID.
-				outputs[b.dna.motorIDs.GetIndex(signal.source.ID)] = signal.signal
+				outputs[b.dna.MotorIDs.GetIndex(signal.source.ID)] = signal.signal
 			}
 		}
 	}
