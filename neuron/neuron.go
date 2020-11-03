@@ -3,7 +3,6 @@ package neuron
 import (
 	"log"
 	"math"
-	"sync"
 )
 
 // IDType standardizes the type of IDs used everywhere, so they can
@@ -126,35 +125,22 @@ type Neuron struct {
 	snip     *Snippet
 	sigChan  chan Signal
 	isVision bool
-
-	mu             sync.Mutex
-	pendingSignals []SignalType
 }
 
-func (n *Neuron) ReceiveSignal(input SignalType) {
-	n.mu.Lock()
-	n.pendingSignals = append(n.pendingSignals, input)
-	n.mu.Unlock()
-}
-
-func (n *Neuron) Fire() {
-	n.mu.Lock()
+func (n *Neuron) Fire(inputs []SignalType) {
+	// fmt.Printf("    Neuron %d locked to fire\n", n.snip.ID)
 	// Vision neurons only need 1 input signal, others need 2.
-	if len(n.pendingSignals) == 0 || (len(n.pendingSignals) == 1 && !n.isVision) {
+	if len(inputs) == 0 || (len(inputs) == 1 && !n.isVision) {
 		// Send an empty struct on the channel to alert the caller
 		// that there is nothing to do.
-		n.mu.Unlock()
 		n.sigChan <- Signal{}
 		return
 	}
 
-	output := n.pendingSignals[0]
-	for i := 1; i < len(n.pendingSignals); i++ {
-		output = n.snip.Op.operate(output, n.pendingSignals[i])
+	output := inputs[0]
+	for i := 1; i < len(inputs); i++ {
+		output = n.snip.Op.operate(output, inputs[i])
 	}
-
-	n.pendingSignals = make([]SignalType, 0)
-	n.mu.Unlock()
 
 	n.sigChan <- Signal{
 		isActive: true,

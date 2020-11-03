@@ -109,15 +109,15 @@ func TestBrainStep(t *testing.T) {
 		t.Errorf("Want %d, got %d", want, got)
 	}
 
-	want := make(IDSet, 1)
-	want[1] = member
+	want := make(map[IDType][]SignalType, 1)
+	want[1] = append(want[1], 3)
 	if !reflect.DeepEqual(want, b.pendingSignals) {
 		t.Errorf("Want %v, got %v", want, b.pendingSignals)
 	}
 
 	want2 := make([]SignalType, 0)
 	want2 = append(want2, 3)
-	if got := b.neurons[1].pendingSignals; !reflect.DeepEqual(want2, got) {
+	if got := b.pendingSignals[1]; !reflect.DeepEqual(want2, got) {
 		t.Errorf("Want %v, got %v", want2, got)
 	}
 }

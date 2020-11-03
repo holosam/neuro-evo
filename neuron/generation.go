@@ -3,7 +3,7 @@ package neuron
 type BrainResult struct {
 	id      IDType
 	inputs  []SignalType
-	outputs []SignalType
+	Outputs []SignalType
 	steps   int
 }
 
@@ -57,14 +57,14 @@ func (g *Generation) fireBrain(id IDType, inputs []SignalType, resChan chan Brai
 	for step := 1; step <= g.config.MaxSteps; step++ {
 		outputs := brain.StepFunction()
 		if len(outputs) > 0 {
-			result.outputs = outputs
+			result.Outputs = outputs
 			result.steps = step
 			resChan <- result
 			return
 		}
 	}
 
-	result.outputs = make([]SignalType, 0)
+	result.Outputs = make([]SignalType, 0)
 	result.steps = g.config.MaxSteps
 	resChan <- result
 }

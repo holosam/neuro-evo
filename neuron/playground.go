@@ -37,6 +37,8 @@ type Playground struct {
 	config PlaygroundConfig
 	codes  map[IDType]*DNA
 	rnd    *rand.Rand
+
+	winner *DNA
 }
 
 type SpeciesScore struct {
@@ -73,12 +75,17 @@ func (p *Playground) SeedRandDNA() {
 	}
 }
 
+func (p *Playground) GetWinner() *DNA {
+	return p.winner
+}
+
 func (p *Playground) SimulatePlayground() {
 	// Each generation gets the set of inputs, competes, reproduces, and mutates.
 	for gen := 0; gen < p.config.Generations; gen++ {
 		g := NewGeneration(p.config.Gconf, p.codes)
 
 		scores := make([]SpeciesScore, p.config.NumSpecies)
+		// Brains keep state between rounds.
 		for round := 0; round < p.config.RoundsPerGen; round++ {
 			inputs := p.config.GenInputsFn(round)
 			results := g.FireBrains(inputs)
@@ -94,6 +101,7 @@ func (p *Playground) SimulatePlayground() {
 		sort.Slice(scores, func(i, j int) bool {
 			return scores[i].score < scores[j].score
 		})
+		p.winner = p.codes[scores[0].id]
 
 		fmt.Printf("Scores for gen %d: Min=%d 25th=%d 50th=%d 75th=%d Max=%d\n", gen,
 			scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
@@ -109,14 +117,18 @@ func (p *Playground) SimulatePlayground() {
 			p.mutateDNA(cc)
 			p.codes[idToReplace] = cc
 		}
-	}
 
+		if gen%10 == 0 {
+			fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
+		}
+	}
 }
 func (p *Playground) scoreResult(
 	id IDType, result *BrainResult, inputs []SignalType) ScoreType {
-	score := 10000 * p.config.FitnessFn(inputs, result.outputs)
-	score += 100 * ScoreType(result.steps)
-	score += 1 * ScoreType(dnaComplexity(p.codes[id]))
+	score := p.config.FitnessFn(inputs, result.Outputs)
+	// score := 10000 * p.config.FitnessFn(inputs, result.Outputs)
+	// score += 100 * ScoreType(result.steps)
+	// score += 1 * ScoreType(dnaComplexity(p.codes[id]))
 	return score
 }
 
@@ -130,7 +142,7 @@ func dnaComplexity(dna *DNA) int {
 
 func (p *Playground) mutateDNA(dna *DNA) {
 	// Somewhat high chance of adding a new snippet.
-	if p.rnd.Float32() < 0.3 {
+	if p.rnd.Float32() < 0.5 {
 		dna.AddSnippet(p.rnd.Intn(NumOps))
 	}
 
@@ -141,7 +153,7 @@ func (p *Playground) mutateDNA(dna *DNA) {
 			continue
 		}
 
-		// Chance of changing the operation
+		// Chance of changing the operation.
 		if p.rnd.Float32() < 0.10 {
 			snip.SetOp(p.rnd.Intn(NumOps))
 		}

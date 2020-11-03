@@ -6,7 +6,7 @@ import (
 )
 
 func TestFireBrain(t *testing.T) {
-	codes := make(map[int]*DNA, 2)
+	codes := make(map[int]*DNA, 1)
 	codes[0] = SimpleTestDNA()
 	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
 
@@ -17,7 +17,7 @@ func TestFireBrain(t *testing.T) {
 	want := BrainResult{
 		id:      0,
 		inputs:  []SignalType{1, 2},
-		outputs: []SignalType{3},
+		Outputs: []SignalType{3},
 		steps:   2,
 	}
 
@@ -34,7 +34,7 @@ func TestRunGeneration(t *testing.T) {
 	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
 	results := g.FireBrains([]SignalType{1, 2})
 
-	if got, want := results[1].outputs, SignalType(3); got[0] != want {
+	if got, want := results[1].Outputs, SignalType(3); got[0] != want {
 		t.Errorf("Want %d, got %d", want, got)
 	}
 }

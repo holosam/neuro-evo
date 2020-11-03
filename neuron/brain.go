@@ -196,7 +196,7 @@ type Brain struct {
 	dna     *DNA
 	neurons map[IDType]*Neuron
 
-	pendingSignals IDSet
+	pendingSignals map[IDType][]SignalType
 	sigChan        chan Signal
 	motorChan      chan Signal
 }
@@ -206,7 +206,7 @@ func Flourish(dna *DNA) *Brain {
 		dna:     dna,
 		neurons: make(map[IDType]*Neuron, len(dna.Snippets)),
 
-		pendingSignals: make(IDSet, len(dna.Snippets)),
+		pendingSignals: make(map[IDType][]SignalType, len(dna.Snippets)),
 		sigChan:        make(chan Signal),
 		motorChan:      make(chan Signal),
 	}
@@ -220,10 +220,9 @@ func Flourish(dna *DNA) *Brain {
 		}
 
 		b.neurons[id] = &Neuron{
-			snip:           snip,
-			sigChan:        selectedChan,
-			isVision:       dna.VisionIDs.HasID(id),
-			pendingSignals: make([]SignalType, 0),
+			snip:     snip,
+			sigChan:  selectedChan,
+			isVision: dna.VisionIDs.HasID(id),
 		}
 	}
 
@@ -240,11 +239,11 @@ func (b *Brain) SeeInput(sigs []SignalType) {
 func (b *Brain) StepFunction() []SignalType {
 	// Track the number of expected signals to receive from channels.
 	expectedSignals := len(b.pendingSignals)
-	for neuronID := range b.pendingSignals {
-		go b.neurons[neuronID].Fire()
+	for neuronID, sigs := range b.pendingSignals {
+		go b.neurons[neuronID].Fire(sigs)
 	}
 	// Clear pending signals before refilling.
-	b.pendingSignals = make(IDSet, len(b.neurons))
+	b.pendingSignals = make(map[IDType][]SignalType, len(b.neurons))
 
 	outputs := make([]SignalType, 0)
 	for i := 0; i < expectedSignals; i++ {
@@ -272,6 +271,6 @@ func (b *Brain) StepFunction() []SignalType {
 }
 
 func (b Brain) addPendingSignal(neuronID IDType, sig SignalType) {
-	b.neurons[neuronID].ReceiveSignal(sig)
-	b.pendingSignals[neuronID] = member
+	// fmt.Printf("   Pending neuron %d with sig %d\n", neuronID, sig)
+	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
 }

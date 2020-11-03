@@ -42,7 +42,7 @@ func TestResultScoring(t *testing.T) {
 	score := p.scoreResult(targetID, &BrainResult{
 		id:      targetID,
 		inputs:  []SignalType{5, 20},
-		outputs: []SignalType{10, 6},
+		Outputs: []SignalType{10, 6},
 		steps:   20,
 	}, []SignalType{})
 
@@ -58,7 +58,7 @@ func TestSimulatePlayground(t *testing.T) {
 
 		NumSpecies:   10,
 		Generations:  10,
-		RoundsPerGen: 10,
+		RoundsPerGen: 3,
 
 		GenInputsFn: func(round int) []SignalType {
 			return []SignalType{1, 2}
@@ -84,5 +84,4 @@ func TestSimulatePlayground(t *testing.T) {
 	if arbitaryDNA == p.codes[0] {
 		t.Errorf("Expected evolution, got nothing")
 	}
-	t.Errorf("Error: look at the scores for the winners getting worse")
 }

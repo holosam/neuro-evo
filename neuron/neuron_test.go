@@ -1,8 +1,10 @@
 package neuron
 
 import (
+	"math/rand"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestOperators(t *testing.T) {
@@ -38,6 +40,20 @@ func TestOperators(t *testing.T) {
 	}
 }
 
+func TestCommutative(t *testing.T) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for opVal := 0; opVal < NumOps; opVal++ {
+		op := interpretOp(opVal)
+		for i := 0; i < 100; i++ {
+			r1 := SignalType(rnd.Intn(int(MaxSignal())))
+			r2 := SignalType(rnd.Intn(int(MaxSignal())))
+			if op.operate(r1, r2) != op.operate(r2, r1) {
+				t.Errorf("Op %d is not commutative for %d and %d", opVal, r1, r2)
+			}
+		}
+	}
+}
+
 func TestSignalingPathway(t *testing.T) {
 	sigChan := make(chan Signal)
 	n := Neuron{
@@ -45,12 +61,7 @@ func TestSignalingPathway(t *testing.T) {
 		sigChan: sigChan,
 	}
 
-	n.ReceiveSignal(1)
-	n.ReceiveSignal(2)
-	n.ReceiveSignal(3)
-	n.ReceiveSignal(4)
-	n.ReceiveSignal(5)
-	go n.Fire()
+	go n.Fire([]SignalType{1, 2, 3, 4, 5})
 	sig := <-sigChan
 
 	if !reflect.DeepEqual(sig.source.Synapses, n.snip.Synapses) {
@@ -70,22 +81,20 @@ func TestVision(t *testing.T) {
 		isVision: true,
 	}
 
-	go n.Fire()
+	go n.Fire([]SignalType{})
 	sig := <-sigChan
 	if got := sig.isActive; got {
 		t.Errorf("Want inactive signal, got active=%v", got)
 	}
 
-	n.ReceiveSignal(1)
-	go n.Fire()
+	go n.Fire([]SignalType{1})
 	sig = <-sigChan
 	if got := sig.signal; got != 1 {
 		t.Errorf("Want 1, got %d", got)
 	}
 
 	n.isVision = false
-	n.ReceiveSignal(1)
-	go n.Fire()
+	go n.Fire([]SignalType{})
 	sig = <-sigChan
 	if got := sig.isActive; got {
 		t.Errorf("Want inactive signal, got active=%v", got)
