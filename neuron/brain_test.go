@@ -76,6 +76,7 @@ func TestSnippetEditing(t *testing.T) {
 
 func TestDNADeepCopy(t *testing.T) {
 	orig := SimpleTestDNA()
+	orig.SetSeed(0, 5)
 	copy := orig.DeepCopy()
 	if !reflect.DeepEqual(orig, copy) {
 		t.Errorf("Want equal, orig: %v, copy: %v", orig, copy)
@@ -89,8 +90,10 @@ func TestDNADeepCopy(t *testing.T) {
 }
 
 func TestDNAPrettyPrint(t *testing.T) {
-	want := "(V0)=0:2[2]  (V1)=1:2[2]  (M0)=2:2"
-	if got := SimpleTestDNA().PrettyPrint(); got != want {
+	want := "(V0)=0:2[2]  (V1)=1:2<9[2]  (M0)=2:2"
+	d := SimpleTestDNA()
+	d.SetSeed(1, 9)
+	if got := d.PrettyPrint(); got != want {
 		t.Errorf("Want %s, got %s", want, got)
 	}
 }
@@ -109,16 +112,17 @@ func TestBrainStep(t *testing.T) {
 		t.Errorf("Want %d, got %d", want, got)
 	}
 
-	want := make(map[IDType][]SignalType, 1)
-	want[1] = append(want[1], 3)
-	if !reflect.DeepEqual(want, b.pendingSignals) {
-		t.Errorf("Want %v, got %v", want, b.pendingSignals)
+	wantMap := make(map[IDType][]SignalType, 2)
+	wantMap[0] = make([]SignalType, 0)
+	wantMap[1] = append(wantMap[1], 3)
+	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
+		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 
-	want2 := make([]SignalType, 0)
-	want2 = append(want2, 3)
-	if got := b.pendingSignals[1]; !reflect.DeepEqual(want2, got) {
-		t.Errorf("Want %v, got %v", want2, got)
+	// Ensure the pending signals aren't cleared without firing.
+	b.StepFunction()
+	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
+		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 }
 
@@ -137,4 +141,26 @@ func TestEyesight(t *testing.T) {
 	if got := b.StepFunction(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
+}
+
+func TestSignalSeeds(t *testing.T) {
+	d := NewDNA()
+	d.AddSnippet(2).AddSynapse(1)
+	d.AddSnippet(2)
+	d.AddMotorID(1)
+	d.SetSeed(1, 8)
+
+	b := Flourish(d)
+	b.addPendingSignal(0, SignalType(1))
+	b.addPendingSignal(0, SignalType(2))
+
+	b.StepFunction()
+	got := b.StepFunction()
+
+	want := make([]SignalType, 1)
+	want[0] = 11
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+	t.Errorf("double check")
 }

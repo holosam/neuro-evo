@@ -3,6 +3,7 @@ package neuron
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 type IndexedIDs struct {
@@ -72,6 +73,8 @@ type DNA struct {
 	Snippets map[IDType]*Snippet
 	NextID   IDType
 
+	Seeds map[IDType]SignalType
+
 	VisionIDs *IndexedIDs
 	MotorIDs  *IndexedIDs
 }
@@ -80,17 +83,17 @@ func NewDNA() *DNA {
 	return &DNA{
 		Snippets:  make(map[IDType]*Snippet, 0),
 		NextID:    0,
+		Seeds:     make(map[IDType]SignalType, 0),
 		VisionIDs: NewIndexedIDs(),
 		MotorIDs:  NewIndexedIDs(),
 	}
 }
 
-// DeepCopy uses a library to copy all nested values to a new struct, including
-// values held by pointers. Only copies exported fields.
 func (src *DNA) DeepCopy() *DNA {
 	dst := &DNA{
 		Snippets:  make(map[IDType]*Snippet, len(src.Snippets)),
 		NextID:    src.NextID,
+		Seeds:     make(map[IDType]SignalType, len(src.Seeds)),
 		VisionIDs: src.VisionIDs.Copy(),
 		MotorIDs:  src.MotorIDs.Copy(),
 	}
@@ -101,6 +104,10 @@ func (src *DNA) DeepCopy() *DNA {
 			s.AddSynapse(syn)
 		}
 		dst.Snippets[id] = s
+	}
+
+	for id, seed := range src.Seeds {
+		dst.Seeds[id] = seed
 	}
 
 	return dst
@@ -125,6 +132,10 @@ func (d *DNA) DeleteSnippet(id IDType) {
 }
 
 func (d *DNA) AddSynapse(snipID, synID IDType) {
+	if d.MotorIDs.HasID(snipID) {
+		return
+	}
+
 	if snip, snipExists := d.Snippets[snipID]; snipExists {
 		if _, synExists := d.Snippets[synID]; synExists {
 			snip.AddSynapse(synID)
@@ -136,6 +147,14 @@ func (d *DNA) RemoveSynapse(snipID, synID IDType) {
 	if snip, snipExists := d.Snippets[snipID]; snipExists {
 		snip.RemoveSynapse(synID)
 	}
+}
+
+func (d *DNA) SetSeed(id IDType, seed SignalType) {
+	d.Seeds[id] = seed
+}
+
+func (d *DNA) RemoveSeed(id IDType) {
+	delete(d.Seeds, id)
 }
 
 func (d *DNA) AddVisionID(id IDType) {
@@ -172,6 +191,10 @@ func (d *DNA) PrettyPrint() string {
 
 		s += fmt.Sprintf("%d:%d", id, snip.Op)
 
+		if seed, exists := d.Seeds[id]; exists {
+			s += fmt.Sprintf("<%d", seed)
+		}
+
 		if len(snip.Synapses) > 0 {
 			s += "["
 			sortedSyns := make([]bool, d.NextID)
@@ -191,6 +214,42 @@ func (d *DNA) PrettyPrint() string {
 	return s
 }
 
+type pathNode struct {
+	id          IDType
+	downstream  map[IDType]*pathNode
+	motorOutput bool
+}
+
+type SignalPathway struct {
+	root *pathNode
+
+	mu           sync.Mutex
+	currentLevel []pathNode
+}
+
+func NewSignalPathway() *SignalPathway {
+	s := &SignalPathway{
+		mu:           sync.Mutex{},
+		currentLevel: make([]pathNode, 1),
+	}
+	s.currentLevel[0] = pathNode{
+		id:          -1,
+		downstream:  make(map[IDType]*pathNode, 0),
+		motorOutput: true,
+	}
+	s.root = &s.currentLevel[0]
+	return s
+}
+
+func (s *SignalPathway) addNode(srcID, dstID IDType) {
+	for _, node := range s.currentLevel {
+		if node.id == srcID {
+
+			node.downstream[dstID]
+		}
+	}
+}
+
 // Brain docs
 type Brain struct {
 	dna     *DNA
@@ -199,6 +258,8 @@ type Brain struct {
 	pendingSignals map[IDType][]SignalType
 	sigChan        chan Signal
 	motorChan      chan Signal
+
+	signalPathway *SignalPathway
 }
 
 func Flourish(dna *DNA) *Brain {
@@ -212,7 +273,7 @@ func Flourish(dna *DNA) *Brain {
 	}
 
 	for id, snip := range dna.Snippets {
-		// Select which signal channel should be injected. Motor neurons fire a
+		// Select which signal channel should be injected. Motor neurons fire on a
 		// different channel.
 		selectedChan := b.sigChan
 		if dna.MotorIDs.HasID(id) {
@@ -224,6 +285,10 @@ func Flourish(dna *DNA) *Brain {
 			sigChan:  selectedChan,
 			isVision: dna.VisionIDs.HasID(id),
 		}
+	}
+
+	for id, seed := range dna.Seeds {
+		b.addPendingSignal(id, seed)
 	}
 
 	return b
@@ -242,35 +307,59 @@ func (b *Brain) StepFunction() []SignalType {
 	for neuronID, sigs := range b.pendingSignals {
 		go b.neurons[neuronID].Fire(sigs)
 	}
-	// Clear pending signals before refilling.
-	b.pendingSignals = make(map[IDType][]SignalType, len(b.neurons))
 
+	// Create a separate map that will be merged with pendingSignals after all
+	// firing is done. This avoids a race condition where a synapse would add
+	// a pending signal to the map and then be cleared later if that neuron was
+	// going to fire anyway.
+	nextSignals := make(map[IDType][]SignalType, len(b.neurons))
 	outputs := make([]SignalType, 0)
+
 	for i := 0; i < expectedSignals; i++ {
 		select {
 		case signal := <-b.sigChan:
-			// May send an empty signal if the action potential threshold isn't met.
+			// May receive an inactive signal if the firing threshold isn't met.
 			if signal.isActive {
+				b.clearPendingSignals(signal.source.ID)
+
 				for neuronID := range signal.source.Synapses {
-					b.addPendingSignal(neuronID, signal.signal)
+					// Queue up signals to be added to pendingSignals.
+					nextSignals[neuronID] = append(nextSignals[neuronID], signal.signal)
 				}
 			}
 		case signal := <-b.motorChan:
 			if signal.isActive {
+				b.clearPendingSignals(signal.source.ID)
+
 				// Resize the outputs to handle the number of motor neurons.
 				if len(outputs) == 0 {
 					outputs = make([]SignalType, b.dna.MotorIDs.Length())
 				}
-
 				// Insert the signal at the index of the motor neuron ID.
 				outputs[b.dna.MotorIDs.GetIndex(signal.source.ID)] = signal.signal
 			}
 		}
 	}
+
+	// Merge nextSignals into pendingSignals now that the step is over.
+	for neuronID, signals := range nextSignals {
+		for _, signal := range signals {
+			b.addPendingSignal(neuronID, signal)
+		}
+	}
+
 	return outputs
 }
 
-func (b Brain) addPendingSignal(neuronID IDType, sig SignalType) {
-	// fmt.Printf("   Pending neuron %d with sig %d\n", neuronID, sig)
+func (b Brain) startSignalingPathway(neuronID IDType, sig SignalType) {
+
 	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
+}
+
+func (b Brain) addPendingSignal(neuronID IDType, sig SignalType) {
+	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
+}
+
+func (b Brain) clearPendingSignals(neuronID IDType) {
+	b.pendingSignals[neuronID] = make([]SignalType, 0)
 }

@@ -105,7 +105,7 @@ func MakeSnippetOp(id IDType, op OperatorType, synapses ...IDType) *Snippet {
 	return &s
 }
 
-// SignalType is the value held in a neuron
+// SignalType is the value held in a neuron. "byte" is an alias for uint8.
 type SignalType = uint8
 
 // MaxSignal returns the highest number for the signal type, to
@@ -113,6 +113,10 @@ type SignalType = uint8
 func MaxSignal() SignalType {
 	return math.MaxUint8
 }
+
+// Idea: pass pointers to the SAME signals around the brain,
+// which accumulate a list of neurons it passes through
+// Need to make deep copies when it's passed to many synapses
 
 // Signal holds a value that this neuron is firing off.
 type Signal struct {
@@ -128,12 +132,14 @@ type Neuron struct {
 }
 
 func (n *Neuron) Fire(inputs []SignalType) {
-	// fmt.Printf("    Neuron %d locked to fire\n", n.snip.ID)
 	// Vision neurons only need 1 input signal, others need 2.
 	if len(inputs) == 0 || (len(inputs) == 1 && !n.isVision) {
 		// Send an empty struct on the channel to alert the caller
 		// that there is nothing to do.
-		n.sigChan <- Signal{}
+		n.sigChan <- Signal{
+			isActive: false,
+			source:   n.snip,
+		}
 		return
 	}
 
