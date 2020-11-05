@@ -10,9 +10,11 @@ func SimpleTestDNA() *DNA {
 	d := NewDNA()
 	d.AddSnippet(2).AddSynapse(2)
 	d.AddVisionID(0)
+	d.SetSeed(0, 0)
 
 	d.AddSnippet(2).AddSynapse(2)
 	d.AddVisionID(1)
+	d.SetSeed(1, 0)
 
 	d.AddSnippet(2)
 	d.AddMotorID(2)
@@ -76,7 +78,6 @@ func TestSnippetEditing(t *testing.T) {
 
 func TestDNADeepCopy(t *testing.T) {
 	orig := SimpleTestDNA()
-	orig.SetSeed(0, 5)
 	copy := orig.DeepCopy()
 	if !reflect.DeepEqual(orig, copy) {
 		t.Errorf("Want equal, orig: %v, copy: %v", orig, copy)
@@ -90,9 +91,8 @@ func TestDNADeepCopy(t *testing.T) {
 }
 
 func TestDNAPrettyPrint(t *testing.T) {
-	want := "(V0)=0:2[2]  (V1)=1:2<9[2]  (M0)=2:2"
+	want := "(V0)=0:2<0[2]  (V1)=1:2<0[2]  (M0)=2:2"
 	d := SimpleTestDNA()
-	d.SetSeed(1, 9)
 	if got := d.PrettyPrint(); got != want {
 		t.Errorf("Want %s, got %s", want, got)
 	}
@@ -104,25 +104,53 @@ func TestBrainStep(t *testing.T) {
 	d.AddSnippet(7)
 	b := Flourish(d)
 
-	b.addPendingSignal(0, SignalType(1))
-	b.addPendingSignal(0, SignalType(2))
-	moves := b.StepFunction()
+	b.addPendingInput(0, SignalType(1))
+	b.addPendingInput(0, SignalType(2))
 
-	if want, got := 0, len(moves); want != got {
+	if want, got := 1, len(b.pendingSignals); want != got {
+		t.Errorf("Want %d, got %d", want, got)
+	}
+	if want, got := 2, len(b.pendingSignals[0]); want != got {
 		t.Errorf("Want %d, got %d", want, got)
 	}
 
-	wantMap := make(map[IDType][]SignalType, 2)
-	wantMap[0] = make([]SignalType, 0)
-	wantMap[1] = append(wantMap[1], 3)
-	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
-		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
+	outputs := b.StepFunction()
+
+	if want, got := 0, len(outputs); want != got {
+		t.Errorf("Want %d, got %d", want, got)
+	}
+	if want, got := 1, len(b.pendingSignals); want != got {
+		t.Errorf("Want %d, got %d", want, got)
+	}
+
+	if sources, exists := b.pendingSignals[1]; !exists {
+		t.Errorf("Want %v, got %v", true, exists)
+	} else {
+		if want, got := 1, len(sources); want != got {
+			t.Errorf("Want %d, got %d", want, got)
+		}
+		if source, exists2 := sources[0]; !exists2 {
+			t.Errorf("Want %v, got %v", true, exists2)
+		} else {
+			if want, got := 2, len(source.sources); want != got {
+				t.Errorf("Want %v, got %v", want, got)
+			}
+			if want, got := 0, source.neuronID; want != got {
+				t.Errorf("Want %v, got %v", want, got)
+			}
+			if want, got := true, source.isActive; want != got {
+				t.Errorf("Want %v, got %v", want, got)
+			}
+			if want, got := SignalType(3), source.output; want != got {
+				t.Errorf("Want %v, got %v", want, got)
+			}
+		}
 	}
 
 	// Ensure the pending signals aren't cleared without firing.
 	b.StepFunction()
-	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
-		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
+	if want, got := 1, len(b.pendingSignals); want != got {
+		t.Errorf("Want %d, got %d", want, got)
 	}
 }
 
@@ -131,14 +159,12 @@ func TestEyesight(t *testing.T) {
 	b.SeeInput([]SignalType{1, 2})
 
 	// First step fires the vision neurons and pends for the motor neuron.
-	if got, want := b.StepFunction(), make([]SignalType, 0); !reflect.DeepEqual(got, want) {
+	if got, want := b.StepFunction(), make([]Signal, 0); !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 
 	// Second step fires the motor neuron.
-	want := make([]SignalType, 1)
-	want[0] = 3
-	if got := b.StepFunction(); !reflect.DeepEqual(got, want) {
+	if want, got := SignalType(3), b.StepFunction()[0].output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }
@@ -151,16 +177,50 @@ func TestSignalSeeds(t *testing.T) {
 	d.SetSeed(1, 8)
 
 	b := Flourish(d)
-	b.addPendingSignal(0, SignalType(1))
-	b.addPendingSignal(0, SignalType(2))
+	b.addPendingInput(0, SignalType(1))
+	b.addPendingInput(0, SignalType(2))
 
 	b.StepFunction()
 	got := b.StepFunction()
 
-	want := make([]SignalType, 1)
-	want[0] = 11
-	if !reflect.DeepEqual(want, got) {
+	if want, got := SignalType(11), got[0].output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	t.Errorf("double check")
+}
+
+func TestSignalTraceBack(t *testing.T) {
+	d := SimpleTestDNA()
+	d.SetSeed(2, 8)
+
+	b := Flourish(d)
+	b.SeeInput([]SignalType{1, 2})
+
+	b.StepFunction()
+	output := b.StepFunction()
+
+	if want, got := SignalType(11), output[0].output; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+
+	s2 := output[0].sources
+	if want, got := 3, len(s2); want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+	if want, got := SignalType(8), s2[-1].output; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+	if want, got := SignalType(1), s2[0].output; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+	if want, got := SignalType(2), s2[1].output; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+
+	s0 := s2[0].sources
+	if want, got := SignalType(0), s0[-1].output; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+	if want, got := SignalType(1), s0[-2].output; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
 }

@@ -29,6 +29,7 @@ func TestRandDNA(t *testing.T) {
 	}
 }
 
+/*
 func TestResultScoring(t *testing.T) {
 	p := NewPlayground(PlaygroundConfig{
 		FitnessFn: func(inputs []SignalType, outputs []SignalType) ScoreType {
@@ -50,7 +51,7 @@ func TestResultScoring(t *testing.T) {
 		t.Errorf("Want %d, got %d", want, got)
 	}
 }
-
+*/
 func TestSimulatePlayground(t *testing.T) {
 	p := NewPlayground(PlaygroundConfig{
 		DnaSeedSnippets:  10,

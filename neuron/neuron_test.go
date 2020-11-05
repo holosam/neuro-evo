@@ -8,12 +8,6 @@ import (
 )
 
 func TestOperators(t *testing.T) {
-	// if got := ADD.operate(3, 7); got != 10 {
-	// 	t.Errorf("Got wrong ADD value: %v", got)
-	// }
-	// if got := MULTIPLY.operate(3, 7); got != 21 {
-	// 	t.Errorf("Got wrong MULTIPLY value: %v", got)
-	// }
 	if got := AND.operate(9, 14); got != 8 {
 		t.Errorf("Got wrong AND value: %v", got)
 	}
@@ -54,49 +48,43 @@ func TestCommutative(t *testing.T) {
 	}
 }
 
-func TestSignalingPathway(t *testing.T) {
-	sigChan := make(chan Signal)
-	n := Neuron{
-		snip:    MakeSnippet(0, 2, 1, 2),
-		sigChan: sigChan,
-	}
-
-	go n.Fire([]SignalType{1, 2, 3, 4, 5})
-	sig := <-sigChan
-
-	if !reflect.DeepEqual(sig.source.Synapses, n.snip.Synapses) {
-		t.Errorf("Want %v, got %v", sig.source.Synapses, n.snip.Synapses)
-	}
-	want := SignalType(7)
-	if sig.signal != want {
-		t.Errorf("Want %d, got %d", want, sig.signal)
+func CreateTestSignal(sig SignalType) *Signal {
+	return &Signal{
+		sources:  make(map[IDType]*Signal),
+		neuronID: 0,
+		isActive: true,
+		output:   sig,
 	}
 }
 
-func TestVision(t *testing.T) {
-	sigChan := make(chan Signal)
-	n := Neuron{
-		snip:     MakeSnippet(0, 0, 1, 2),
-		sigChan:  sigChan,
-		isVision: true,
+func CreateTestSignalInput(sigs ...SignalType) map[IDType]*Signal {
+	m := make(map[IDType]*Signal)
+	for i, sig := range sigs {
+		m[i] = CreateTestSignal(sig)
+	}
+	return m
+}
+
+func TestSignalingPathway(t *testing.T) {
+	n := NewNeuron(0, 2)
+	n.AddSynapse(1)
+	n.AddSynapse(2)
+
+	sigChan := make(chan *Signal)
+
+	sources := CreateTestSignalInput(1, 2, 3, 4, 5)
+
+	go n.Fire(sources, sigChan)
+	got := <-sigChan
+
+	want := &Signal{
+		sources:  sources,
+		neuronID: 0,
+		isActive: true,
+		output:   7,
 	}
 
-	go n.Fire([]SignalType{})
-	sig := <-sigChan
-	if got := sig.isActive; got {
-		t.Errorf("Want inactive signal, got active=%v", got)
-	}
-
-	go n.Fire([]SignalType{1})
-	sig = <-sigChan
-	if got := sig.signal; got != 1 {
-		t.Errorf("Want 1, got %d", got)
-	}
-
-	n.isVision = false
-	go n.Fire([]SignalType{})
-	sig = <-sigChan
-	if got := sig.isActive; got {
-		t.Errorf("Want inactive signal, got active=%v", got)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Want %v, got %v", want, got)
 	}
 }

@@ -125,48 +125,50 @@ func (p *Playground) SimulatePlayground() {
 }
 func (p *Playground) scoreResult(
 	id IDType, result *BrainResult, inputs []SignalType) ScoreType {
-	score := p.config.FitnessFn(inputs, result.Outputs)
+	// score := p.config.FitnessFn(inputs, result.Outputs)
 	// score := 10000 * p.config.FitnessFn(inputs, result.Outputs)
 	// score += 100 * ScoreType(result.steps)
 	// score += 1 * ScoreType(dnaComplexity(p.codes[id]))
-	return score
+	return 0
 }
 
 func dnaComplexity(dna *DNA) int {
 	complexity := 0
 	for _, snip := range dna.Snippets {
-		complexity += 1 + len(snip.Synapses)
+		complexity += 1 + len(snip.synapses)
 	}
 	return complexity
 }
 
 func (p *Playground) mutateDNA(dna *DNA) {
-	// Somewhat high chance of adding a new snippet.
-	if p.rnd.Float32() < 0.5 {
-		dna.AddSnippet(p.rnd.Intn(NumOps))
-	}
-
-	for snipID, snip := range dna.Snippets {
-		// Low chance of deleting a snippet (as long as its not vision or motor).
-		if !dna.VisionIDs.HasID(snipID) && !dna.MotorIDs.HasID(snipID) && p.rnd.Float32() < 0.01 {
-			dna.DeleteSnippet(snipID)
-			continue
+	/*
+		// Somewhat high chance of adding a new snippet.
+		if p.rnd.Float32() < 0.5 {
+			dna.AddSnippet(p.rnd.Intn(NumOps))
 		}
 
-		// Chance of changing the operation.
-		if p.rnd.Float32() < 0.10 {
-			snip.SetOp(p.rnd.Intn(NumOps))
-		}
+		for snipID, snip := range dna.Snippets {
+			// Low chance of deleting a snippet (as long as its not vision or motor).
+			if !dna.VisionIDs.HasID(snipID) && !dna.MotorIDs.HasID(snipID) && p.rnd.Float32() < 0.01 {
+				dna.DeleteSnippet(snipID)
+				continue
+			}
 
-		// Chance of a bit flip to create or remove a synapse to each other neuron.
-		for possibleSynID := range dna.Snippets {
-			if p.rnd.Float32() < 0.05 {
-				if _, exists := snip.Synapses[possibleSynID]; exists {
-					snip.RemoveSynapse(possibleSynID)
-				} else {
-					snip.AddSynapse(possibleSynID)
+			// Chance of changing the operation.
+			if p.rnd.Float32() < 0.10 {
+				snip.SetOp(p.rnd.Intn(NumOps))
+			}
+
+			// Chance of a bit flip to create or remove a synapse to each other neuron.
+			for possibleSynID := range dna.Snippets {
+				if p.rnd.Float32() < 0.05 {
+					if _, exists := snip.Synapses[possibleSynID]; exists {
+						snip.RemoveSynapse(possibleSynID)
+					} else {
+						snip.AddSynapse(possibleSynID)
+					}
 				}
 			}
 		}
-	}
+	*/
 }

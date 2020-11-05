@@ -3,7 +3,6 @@ package neuron
 import (
 	"fmt"
 	"strings"
-	"sync"
 )
 
 type IndexedIDs struct {
@@ -70,7 +69,7 @@ func (x *IndexedIDs) Copy() *IndexedIDs {
 }
 
 type DNA struct {
-	Snippets map[IDType]*Snippet
+	Snippets map[IDType]*Neuron
 	NextID   IDType
 
 	Seeds map[IDType]SignalType
@@ -81,7 +80,7 @@ type DNA struct {
 
 func NewDNA() *DNA {
 	return &DNA{
-		Snippets:  make(map[IDType]*Snippet, 0),
+		Snippets:  make(map[IDType]*Neuron, 0),
 		NextID:    0,
 		Seeds:     make(map[IDType]SignalType, 0),
 		VisionIDs: NewIndexedIDs(),
@@ -91,19 +90,19 @@ func NewDNA() *DNA {
 
 func (src *DNA) DeepCopy() *DNA {
 	dst := &DNA{
-		Snippets:  make(map[IDType]*Snippet, len(src.Snippets)),
+		Snippets:  make(map[IDType]*Neuron, len(src.Snippets)),
 		NextID:    src.NextID,
 		Seeds:     make(map[IDType]SignalType, len(src.Seeds)),
 		VisionIDs: src.VisionIDs.Copy(),
 		MotorIDs:  src.MotorIDs.Copy(),
 	}
 
-	for id, snippet := range src.Snippets {
-		s := MakeSnippetOp(id, snippet.Op)
-		for syn := range snippet.Synapses {
-			s.AddSynapse(syn)
+	for id, neuron := range src.Snippets {
+		n := NewNeuron(id, neuron.op)
+		for syn := range neuron.synapses {
+			n.AddSynapse(syn)
 		}
-		dst.Snippets[id] = s
+		dst.Snippets[id] = n
 	}
 
 	for id, seed := range src.Seeds {
@@ -113,8 +112,8 @@ func (src *DNA) DeepCopy() *DNA {
 	return dst
 }
 
-func (d *DNA) AddSnippet(opVal int) *Snippet {
-	s := MakeSnippet(d.NextID, opVal)
+func (d *DNA) AddSnippet(opVal int) *Neuron {
+	s := NewNeuron(d.NextID, interpretOp(opVal))
 	d.Snippets[d.NextID] = s
 	d.NextID++
 	return s
@@ -171,7 +170,7 @@ func (d *DNA) AddMotorID(id IDType) {
 
 func (d *DNA) PrettyPrint() string {
 	s := ""
-	sortedSnips := make([]*Snippet, d.NextID)
+	sortedSnips := make([]*Neuron, d.NextID)
 	for id, snip := range d.Snippets {
 		sortedSnips[id] = snip
 	}
@@ -189,16 +188,16 @@ func (d *DNA) PrettyPrint() string {
 			s += fmt.Sprintf("(M%d)=", d.MotorIDs.GetIndex(id))
 		}
 
-		s += fmt.Sprintf("%d:%d", id, snip.Op)
+		s += fmt.Sprintf("%d:%d", id, snip.op)
 
 		if seed, exists := d.Seeds[id]; exists {
 			s += fmt.Sprintf("<%d", seed)
 		}
 
-		if len(snip.Synapses) > 0 {
+		if len(snip.synapses) > 0 {
 			s += "["
 			sortedSyns := make([]bool, d.NextID)
-			for synapse := range snip.Synapses {
+			for synapse := range snip.synapses {
 				sortedSyns[synapse] = true
 			}
 			for synID, exists := range sortedSyns {
@@ -214,81 +213,23 @@ func (d *DNA) PrettyPrint() string {
 	return s
 }
 
-type pathNode struct {
-	id          IDType
-	downstream  map[IDType]*pathNode
-	motorOutput bool
-}
-
-type SignalPathway struct {
-	root *pathNode
-
-	mu           sync.Mutex
-	currentLevel []pathNode
-}
-
-func NewSignalPathway() *SignalPathway {
-	s := &SignalPathway{
-		mu:           sync.Mutex{},
-		currentLevel: make([]pathNode, 1),
-	}
-	s.currentLevel[0] = pathNode{
-		id:          -1,
-		downstream:  make(map[IDType]*pathNode, 0),
-		motorOutput: true,
-	}
-	s.root = &s.currentLevel[0]
-	return s
-}
-
-func (s *SignalPathway) addNode(srcID, dstID IDType) {
-	for _, node := range s.currentLevel {
-		if node.id == srcID {
-
-			node.downstream[dstID]
-		}
-	}
-}
+// PendingSignalsMap is a map of neurons that will receive a set of signals.
+type PendingSignalsMap = map[IDType]map[IDType]*Signal
 
 // Brain docs
 type Brain struct {
-	dna     *DNA
-	neurons map[IDType]*Neuron
-
-	pendingSignals map[IDType][]SignalType
-	sigChan        chan Signal
-	motorChan      chan Signal
-
-	signalPathway *SignalPathway
+	dna            *DNA
+	pendingSignals PendingSignalsMap
 }
 
 func Flourish(dna *DNA) *Brain {
 	b := &Brain{
-		dna:     dna,
-		neurons: make(map[IDType]*Neuron, len(dna.Snippets)),
-
-		pendingSignals: make(map[IDType][]SignalType, len(dna.Snippets)),
-		sigChan:        make(chan Signal),
-		motorChan:      make(chan Signal),
-	}
-
-	for id, snip := range dna.Snippets {
-		// Select which signal channel should be injected. Motor neurons fire on a
-		// different channel.
-		selectedChan := b.sigChan
-		if dna.MotorIDs.HasID(id) {
-			selectedChan = b.motorChan
-		}
-
-		b.neurons[id] = &Neuron{
-			snip:     snip,
-			sigChan:  selectedChan,
-			isVision: dna.VisionIDs.HasID(id),
-		}
+		dna:            dna,
+		pendingSignals: make(PendingSignalsMap, len(dna.Snippets)),
 	}
 
 	for id, seed := range dna.Seeds {
-		b.addPendingSignal(id, seed)
+		b.addPendingInput(id, seed)
 	}
 
 	return b
@@ -297,69 +238,83 @@ func Flourish(dna *DNA) *Brain {
 func (b *Brain) SeeInput(sigs []SignalType) {
 	for i, sig := range sigs {
 		// Send the signal to the vision ID at the signal's index.
-		b.addPendingSignal(b.dna.VisionIDs.GetId(i), sig)
+		b.addPendingInput(b.dna.VisionIDs.GetId(i), sig)
 	}
 }
 
-func (b *Brain) StepFunction() []SignalType {
+func (b *Brain) StepFunction() []Signal {
 	// Track the number of expected signals to receive from channels.
 	expectedSignals := len(b.pendingSignals)
-	for neuronID, sigs := range b.pendingSignals {
-		go b.neurons[neuronID].Fire(sigs)
+	sigChan := make(chan *Signal)
+	for neuronID, signals := range b.pendingSignals {
+		fmt.Printf("Firing neuron %d\n", neuronID)
+		go b.dna.Snippets[neuronID].Fire(signals, sigChan)
 	}
 
 	// Create a separate map that will be merged with pendingSignals after all
 	// firing is done. This avoids a race condition where a synapse would add
 	// a pending signal to the map and then be cleared later if that neuron was
 	// going to fire anyway.
-	nextSignals := make(map[IDType][]SignalType, len(b.neurons))
-	outputs := make([]SignalType, 0)
+	nextInputs := make(PendingSignalsMap, len(b.dna.Snippets))
+	outputs := make([]Signal, 0)
 
 	for i := 0; i < expectedSignals; i++ {
-		select {
-		case signal := <-b.sigChan:
-			// May receive an inactive signal if the firing threshold isn't met.
-			if signal.isActive {
-				b.clearPendingSignals(signal.source.ID)
+		signal := <-sigChan
+		fmt.Printf("Got signal %v\n", signal)
 
-				for neuronID := range signal.source.Synapses {
-					// Queue up signals to be added to pendingSignals.
-					nextSignals[neuronID] = append(nextSignals[neuronID], signal.signal)
-				}
+		// May receive an inactive signal if the firing threshold isn't met.
+		if !signal.isActive {
+			continue
+		}
+
+		// The neuron fired, so clear any pending signals.
+		delete(b.pendingSignals, signal.neuronID)
+
+		if b.dna.MotorIDs.HasID(signal.neuronID) {
+			// Resize the outputs to handle the number of motor neurons.
+			if len(outputs) == 0 {
+				outputs = make([]Signal, b.dna.MotorIDs.Length())
 			}
-		case signal := <-b.motorChan:
-			if signal.isActive {
-				b.clearPendingSignals(signal.source.ID)
-
-				// Resize the outputs to handle the number of motor neurons.
-				if len(outputs) == 0 {
-					outputs = make([]SignalType, b.dna.MotorIDs.Length())
-				}
-				// Insert the signal at the index of the motor neuron ID.
-				outputs[b.dna.MotorIDs.GetIndex(signal.source.ID)] = signal.signal
+			// Insert the signal at the index of the motor neuron ID.
+			outputs[b.dna.MotorIDs.GetIndex(signal.neuronID)] = *signal
+		} else {
+			for synID := range b.dna.Snippets[signal.neuronID].synapses {
+				// Queue up signals to be added to pendingSignals for every synapse.
+				b.addPendingSignal(nextInputs, synID, signal)
 			}
 		}
 	}
 
 	// Merge nextSignals into pendingSignals now that the step is over.
-	for neuronID, signals := range nextSignals {
-		for _, signal := range signals {
-			b.addPendingSignal(neuronID, signal)
+	for neuronID, sources := range nextInputs {
+		for _, signal := range sources {
+			fmt.Printf("Adding pending signal for %d: %v\n", neuronID, signal)
+			b.addPendingSignal(b.pendingSignals, neuronID, signal)
 		}
 	}
 
 	return outputs
 }
 
-func (b Brain) startSignalingPathway(neuronID IDType, sig SignalType) {
+// addPendingInput is used to start a signal pathway from an input. The input
+// is coming from the "environment" (either vision or DNA seed) so the sources
+// map is empty and the neuronID is an arbitrary unique ID.
+func (b *Brain) addPendingInput(neuronID IDType, sig SignalType) {
+	signal := &Signal{
+		sources:  make(map[IDType]*Signal),
+		neuronID: -1 - len(b.pendingSignals[neuronID]),
+		isActive: true,
+		output:   sig,
+	}
 
-	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
+	fmt.Printf("Adding pending input for %d: %v\n", neuronID, signal)
+	b.addPendingSignal(b.pendingSignals, neuronID, signal)
 }
 
-func (b Brain) addPendingSignal(neuronID IDType, sig SignalType) {
-	b.pendingSignals[neuronID] = append(b.pendingSignals[neuronID], sig)
-}
-
-func (b Brain) clearPendingSignals(neuronID IDType) {
-	b.pendingSignals[neuronID] = make([]SignalType, 0)
+func (b *Brain) addPendingSignal(pendingSignals PendingSignalsMap,
+	neuronID IDType, signal *Signal) {
+	if _, exists := pendingSignals[neuronID]; !exists {
+		pendingSignals[neuronID] = make(map[IDType]*Signal)
+	}
+	pendingSignals[neuronID][signal.neuronID] = signal
 }
