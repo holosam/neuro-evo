@@ -8,16 +8,15 @@ import (
 // Two vision neurons pointing at a motor neuron.
 func SimpleTestDNA() *DNA {
 	d := NewDNA()
-	d.AddSnippet(2).AddSynapse(2)
-	d.AddVisionID(0)
-	d.SetSeed(0, 0)
+	v0 := d.AddSnippet(SENSORY, OR)
+	d.SetSeed(v0, 0)
 
-	d.AddSnippet(2).AddSynapse(2)
-	d.AddVisionID(1)
-	d.SetSeed(1, 0)
+	v1 := d.AddSnippet(SENSORY, OR)
+	d.SetSeed(v1, 0)
 
-	d.AddSnippet(2)
-	d.AddMotorID(2)
+	m0 := d.AddSnippet(MOTOR, OR)
+	d.AddSynapse(v0, m0)
+	d.AddSynapse(v1, m0)
 
 	return d
 }
@@ -62,10 +61,10 @@ func TestIndexedIDs(t *testing.T) {
 
 func TestSnippetEditing(t *testing.T) {
 	dna := SimpleTestDNA()
-	dna.AddSnippet(5) // id=3
+	dna.AddSnippet(INTER, IFF) // id=3
 	dna.DeleteSnippet(1)
 
-	if dna.VisionIDs.HasID(1) {
+	if dna.NeuronIDs[SENSORY].HasID(1) {
 		t.Errorf("VisionIDs should not have id 1")
 	}
 	if got, want := len(dna.Snippets), 3; got != want {
@@ -83,7 +82,7 @@ func TestDNADeepCopy(t *testing.T) {
 		t.Errorf("Want equal, orig: %v, copy: %v", orig, copy)
 	}
 
-	orig.AddSnippet(4)
+	orig.AddSnippet(INTER, XOR)
 	orig.AddSynapse(0, 1)
 	if reflect.DeepEqual(orig, copy) {
 		t.Errorf("Want not equal, orig: %v, copy: %v", orig, copy)
@@ -100,8 +99,9 @@ func TestDNAPrettyPrint(t *testing.T) {
 
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
-	d.AddSnippet(2).AddSynapse(1)
-	d.AddSnippet(7)
+	d.AddSnippet(INTER, OR)
+	d.AddSnippet(INTER, FALSIFY)
+	d.AddSynapse(0, 1)
 	b := Flourish(d)
 
 	b.addPendingInput(0, SignalType(1))
@@ -171,9 +171,9 @@ func TestEyesight(t *testing.T) {
 
 func TestSignalSeeds(t *testing.T) {
 	d := NewDNA()
-	d.AddSnippet(2).AddSynapse(1)
-	d.AddSnippet(2)
-	d.AddMotorID(1)
+	d.AddSnippet(INTER, OR)
+	d.AddSnippet(MOTOR, OR)
+	d.AddSynapse(0, 1)
 	d.SetSeed(1, 8)
 
 	b := Flourish(d)
