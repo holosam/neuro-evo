@@ -1,7 +1,6 @@
 package neuron
 
 import (
-	"fmt"
 	"math"
 	"testing"
 )
@@ -44,7 +43,7 @@ func TestResultScoring(t *testing.T) {
 		id:     targetID,
 		inputs: []SignalType{5, 20},
 		Outputs: []Signal{{
-			output: 10,
+			Output: 10,
 		}},
 		steps: 20,
 	}, []SignalType{})
@@ -105,8 +104,6 @@ func TestSimulatePlayground(t *testing.T) {
 		NumSpecies:   10,
 		Generations:  5,
 		RoundsPerGen: 3,
-		NumParents:   3,
-
 		GenInputsFn: func(round int) []SignalType {
 			return []SignalType{1, 2}
 		},
@@ -117,7 +114,7 @@ func TestSimulatePlayground(t *testing.T) {
 			}
 			return ScoreType(outputs[0])
 		},
-		NumSpeciesReproduce: 2,
+		NumParents: 3,
 
 		Gconf: GenerationConfig{
 			MaxSteps: 10,
@@ -131,9 +128,4 @@ func TestSimulatePlayground(t *testing.T) {
 	if arbitaryDNA == p.codes[0] {
 		t.Errorf("Expected evolution, got nothing")
 	}
-
-	for _, code := range p.codes {
-		fmt.Printf("Code %s\n", code.PrettyPrint())
-	}
-	t.Errorf("Fail to see logs")
 }

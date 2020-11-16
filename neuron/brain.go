@@ -194,7 +194,7 @@ func (d *DNA) NumPathways() int {
 }
 
 func (d *DNA) PrettyPrint() string {
-	s := ""
+	var sb strings.Builder
 	sortedSnips := make([]*Neuron, d.NextID)
 	for id, snip := range d.Snippets {
 		sortedSnips[id] = snip
@@ -206,36 +206,35 @@ func (d *DNA) PrettyPrint() string {
 		}
 
 		if d.NeuronIDs[SENSORY].HasID(id) {
-			s += fmt.Sprintf("(V%d)=", d.NeuronIDs[SENSORY].GetIndex(id))
+			sb.WriteString(fmt.Sprintf("(V%d)=", d.NeuronIDs[SENSORY].GetIndex(id)))
 		}
 
 		if d.NeuronIDs[MOTOR].HasID(id) {
-			s += fmt.Sprintf("(M%d)=", d.NeuronIDs[MOTOR].GetIndex(id))
+			sb.WriteString(fmt.Sprintf("(M%d)=", d.NeuronIDs[MOTOR].GetIndex(id)))
 		}
 
-		s += fmt.Sprintf("%d:%d", id, snip.op)
+		sb.WriteString(fmt.Sprintf("%d:%d", id, snip.op))
 
 		if seed, exists := d.Seeds[id]; exists {
-			s += fmt.Sprintf("<%d", seed)
+			sb.WriteString(fmt.Sprintf("<%d", seed))
 		}
 
 		if len(snip.synapses) > 0 {
-			s += "["
+			sb.WriteString("[")
 			sortedSyns := make([]bool, d.NextID)
 			for synapse := range snip.synapses {
 				sortedSyns[synapse] = true
 			}
 			for synID, exists := range sortedSyns {
 				if exists {
-					s += fmt.Sprintf("%d,", synID)
+					sb.WriteString(fmt.Sprintf("%d,", synID))
 				}
 			}
-			s = strings.TrimRight(s, ",") + "]"
+			sb.WriteString("]")
 		}
-		s += "  "
+		sb.WriteString("  ")
 	}
-	s = strings.TrimRight(s, " ")
-	return s
+	return sb.String()
 }
 
 // PendingSignalsMap is a map of neurons that will receive a set of signals.
@@ -331,7 +330,7 @@ func (b *Brain) addPendingInput(neuronID IDType, sig SignalType) {
 		sources:  make(map[IDType]*Signal),
 		neuronID: -1 - len(b.pendingSignals[neuronID]),
 		isActive: true,
-		output:   sig,
+		Output:   sig,
 	}
 
 	// fmt.Printf("Adding pending input for %d: %v with DNA %s\n", neuronID, signal, b.dna.PrettyPrint())

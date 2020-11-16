@@ -26,9 +26,8 @@ type PlaygroundConfig struct {
 	GenInputsFn  GenInputsFunc
 
 	// Evolution
-	FitnessFn           FitnessFunc
-	NumSpeciesReproduce int // How many species reproduce (and die off).
-	NumParents          int
+	FitnessFn  FitnessFunc
+	NumParents int
 
 	// Nested configs
 	Gconf GenerationConfig
@@ -119,12 +118,12 @@ func (p *Playground) SimulatePlayground() {
 		})
 		p.winner = p.codes[scores[0].id]
 
-		fmt.Printf("Scores for gen %d: Min=%d 25th=%d 50th=%d 75th=%d Max=%d\n", gen,
+		fmt.Printf("Gen %d scores: Min=%d 25th=%d 50th=%d 75th=%d Max=%d\n", gen,
 			scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
 			scores[3*len(scores)/4].score, scores[len(scores)-1].score)
 
 		newCodes := make(map[IDType]*DNA, len(p.codes))
-		topTier := p.config.NumSpecies / 3
+		topTier := p.config.NumSpecies / 5
 		for i := 0; i < p.config.NumSpecies; i++ {
 			parentScores := make([]SpeciesScore, 3)
 			parentScores[0] = scores[p.rnd.Intn(topTier)]
@@ -136,8 +135,6 @@ func (p *Playground) SimulatePlayground() {
 			parents[1] = parentScores[1].id
 			parents[2] = parentScores[2].id
 
-			// fmt.Printf("Creating offspring from parents %v and scores %v\n", parents, parentScores)
-
 			child := p.createOffspring(parents, parentScores)
 			if len(child.Snippets) == 0 {
 				child = p.singleRandDNA()
@@ -147,32 +144,23 @@ func (p *Playground) SimulatePlayground() {
 		}
 		p.codes = newCodes
 
-		// for i := 0; i < p.config.NumSpeciesReproduce; i++ {
-		// 	winnerID := scores[i].id
-		// 	idToReplace := scores[p.config.NumSpecies-i-1].id
-
-		// 	// Create a copy of the underlying DNA struct to have different references
-		// 	// at each index even though the (pointer to the) source DNA is the same.
-		// 	cc := p.codes[winnerID].DeepCopy()
-		// 	p.mutateDNA(cc)
-		// 	p.codes[idToReplace] = cc
-		// }
-
-		// if gen%10 == 0 {
-		fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
-		// }
+		if gen%10 == 0 {
+			fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
+		}
 	}
 }
 
 func (p *Playground) scoreResult(id IDType, result *BrainResult, inputs []SignalType) ScoreType {
 	outputs := make([]SignalType, len(result.Outputs))
 	for i, signal := range result.Outputs {
-		outputs[i] = signal.output
+		outputs[i] = signal.Output
 	}
 
-	score := 10000 * p.config.FitnessFn(inputs, outputs)
-	score += 100 * ScoreType(result.steps)
-	score += 1 * ScoreType(dnaComplexity(p.codes[id]))
+	score := p.config.FitnessFn(inputs, outputs)
+	// score := 10000 * p.config.FitnessFn(inputs, outputs)
+	// score -= 100 * ScoreType(result.steps)
+	// score += 100 * ScoreType(result.steps)
+	// score += 1 * ScoreType(dnaComplexity(p.codes[id]))
 	return score
 }
 
@@ -193,12 +181,14 @@ func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DN
 	// Vision starts at 0.
 	child.NeuronIDs[SENSORY].InsertID(0)
 	// Inter starts at len(vision) + 1.
-	child.NeuronIDs[INTER].InsertID(p.codes[0].NeuronIDs[SENSORY].Length())
-	// Motor starts at the highest NextID + 1.
+	numVision := p.codes[0].NeuronIDs[SENSORY].Length()
+	child.NeuronIDs[INTER].InsertID(numVision)
+	// Motor starts at the len(vision) + max(len(inter)) + 1.
 	maxID := 0
 	for _, parentID := range dnaIDs {
-		if p.codes[parentID].NextID > maxID {
-			maxID = p.codes[parentID].NextID
+		numVisAndInter := numVision + p.codes[parentID].NeuronIDs[INTER].Length()
+		if numVisAndInter > maxID {
+			maxID = numVisAndInter
 		}
 	}
 	child.NeuronIDs[MOTOR].InsertID(maxID)
@@ -217,13 +207,19 @@ func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DN
 			continue
 		}
 
+		paths := 0
 		for _, outputs := range scores[parentIndex].allOutputs {
 			for _, signal := range outputs {
 				// fmt.Printf("i=%d, rpg=%d, j=%d, tc=%d\n", i, p.config.RoundsPerGen, j, traversalCadence)
 				// if ((i*p.config.RoundsPerGen)+j)%traversalCadence == 0 {
 				// fmt.Printf("Beginning traverse parent %s and child %s\n", parent.PrettyPrint(), child.PrettyPrint())
+
+				if p.rnd.Intn(p.config.NumParents) == 0 {
+					continue
+				}
+
 				p.randomTraversePathway(parent, child, &signal, -1)
-				// }
+				paths++
 			}
 		}
 	}
@@ -240,11 +236,8 @@ func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DN
 }
 
 func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, prevChildID IDType) {
-	// fmt.Printf("Operating on signal %v\n", signal)
-
 	// Base case: vision and seed signals don't have sources.
 	if len(signal.sources) == 0 {
-		// fmt.Printf("Hit the base case.\n")
 		return
 	}
 
@@ -253,28 +246,20 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 	nType := parent.GetNeuronType(signal.neuronID)
 	parentNeuron := parent.Snippets[signal.neuronID]
 
-	// fmt.Printf("ntype=%d for child neurons %v.\n", nType, child.NeuronIDs)
-	if nType == -1 {
-		fmt.Printf("parent %s looking for signal %v\n", parent.PrettyPrint(), signal)
-	}
 	childID := child.NeuronIDs[nType].GetId(0) + parent.NeuronIDs[nType].GetIndex(signal.neuronID)
-	// fmt.Printf("Child ID: %d, for Parent neuron: %v (%d).\n", childID, parentNeuron, nType)
 
 	// If the child doesn't yet have this neuron, create it.
 	if snip, ok := child.Snippets[childID]; !ok {
-
 		child.Snippets[childID] = NewNeuron(childID, parentNeuron.op)
 		child.NeuronIDs[nType].InsertID(childID)
 		if child.NextID <= childID {
 			child.NextID = childID + 1
 		}
-		// fmt.Printf("Created new child neuron: %v.\n", child.Snippets[childID])
 	} else {
 		// If the neuron exists, the op has a chance of being overridden.
 		if p.rnd.Intn(p.config.NumParents) == 0 {
 			snip.op = parentNeuron.op
 		}
-		// fmt.Printf("Existing child neuron: %v.\n", child.Snippets[childID])
 	}
 
 	// Make a connection to the downstream neuron, maintaining the pathway.
@@ -291,14 +276,12 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 		}
 		sourceVal--
 	}
-	// fmt.Printf("Selected source ID: %d from %v\n", sourceID, signal.sources)
 
 	// If the source is negative then it could be a vision input or a seed.
 	if sourceID < 0 {
 		// If it's a seed, add it to the child's DNA.
 		if seed, ok := parent.Seeds[signal.neuronID]; ok {
 			child.Seeds[childID] = seed
-			// fmt.Printf("Adding seed: %d\n", seed)
 		}
 	} else {
 		// Otherwise continue traversing up the tree.
@@ -307,7 +290,7 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 }
 
 func (p *Playground) mutateDNA(dna *DNA) {
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 5; i++ {
 		nType := INTER
 		if p.rnd.Float32() < 0.02 {
 			nType = MOTOR
@@ -323,7 +306,11 @@ func (p *Playground) mutateDNA(dna *DNA) {
 
 		if p.rnd.Float32() < 0.05 {
 			if _, exists := dna.Seeds[snipID]; exists {
-				dna.RemoveSeed(snipID)
+				if p.rnd.Float32() < 0.50 {
+					dna.RemoveSeed(snipID)
+				} else {
+					dna.SetSeed(snipID, SignalType(p.rnd.Intn(int(MaxSignal()))))
+				}
 			} else {
 				dna.SetSeed(snipID, SignalType(p.rnd.Intn(int(MaxSignal()))))
 			}
@@ -335,7 +322,10 @@ func (p *Playground) mutateDNA(dna *DNA) {
 				if _, exists := snip.synapses[possibleSynID]; exists {
 					dna.RemoveSynapse(snipID, possibleSynID)
 				} else {
+					// Try skipping direct vision->motor.
+					// if (dna.NeuronIDs[SENSORY].HasID(snipID) && dna.NeuronIDs[INTER].HasID(possibleSynID)) || (dna.NeuronIDs[INTER].HasID(snipID) && dna.NeuronIDs[MOTOR].HasID(possibleSynID)) {
 					dna.AddSynapse(snipID, possibleSynID)
+					// }
 				}
 			}
 		}

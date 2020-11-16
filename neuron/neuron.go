@@ -101,7 +101,7 @@ type Signal struct {
 
 	neuronID IDType
 	isActive bool
-	output   SignalType
+	Output   SignalType
 }
 
 func (n *Neuron) Fire(signals map[IDType]*Signal, sigChan chan *Signal) {
@@ -109,10 +109,10 @@ func (n *Neuron) Fire(signals map[IDType]*Signal, sigChan chan *Signal) {
 	initialized := false
 	for _, signal := range signals {
 		if !initialized {
-			output = signal.output
+			output = signal.Output
 			initialized = true
 		} else {
-			output = n.op.operate(output, signal.output)
+			output = n.op.operate(output, signal.Output)
 		}
 	}
 
@@ -120,6 +120,6 @@ func (n *Neuron) Fire(signals map[IDType]*Signal, sigChan chan *Signal) {
 		sources:  signals,
 		neuronID: n.id,
 		isActive: len(signals) >= 2,
-		output:   output,
+		Output:   output,
 	}
 }

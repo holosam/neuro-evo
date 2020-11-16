@@ -53,7 +53,7 @@ func CreateTestSignal(sig SignalType) *Signal {
 		sources:  make(map[IDType]*Signal),
 		neuronID: 0,
 		isActive: true,
-		output:   sig,
+		Output:   sig,
 	}
 }
 
@@ -81,7 +81,7 @@ func TestSignalingPathway(t *testing.T) {
 		sources:  sources,
 		neuronID: 0,
 		isActive: true,
-		output:   7,
+		Output:   7,
 	}
 
 	if !reflect.DeepEqual(got, want) {

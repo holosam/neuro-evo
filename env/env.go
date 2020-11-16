@@ -14,17 +14,18 @@ type EnvironmentConfig struct {
 func DefaultEnvConfig() EnvironmentConfig {
 	return EnvironmentConfig{
 		Pconf: neuron.PlaygroundConfig{
-			DnaSeedSnippets:  30,
-			DnaSeedMutations: 10,
+			DnaSeedSnippets:  20,
+			DnaSeedMutations: 5,
 
-			NumSpecies:   1000,
-			Generations:  500,
-			RoundsPerGen: 10,
+			NumSpecies:   100,
+			Generations:  4000,
+			RoundsPerGen: 8,
 
-			NumSpeciesReproduce: 20,
+			NumParents: 3,
 
 			Gconf: neuron.GenerationConfig{
-				MaxSteps: 100,
+				// Could try to return early when there are no pending signals.
+				MaxSteps: 50,
 			},
 		},
 	}
@@ -36,8 +37,9 @@ func Adder(econf EnvironmentConfig) *neuron.DNA {
 	econf.Pconf.GenInputsFn = func(round int) []neuron.SignalType {
 		inputs := make([]neuron.SignalType, 2)
 		for i := 0; i < 2; i++ {
-			// inputs[i] = neuron.SignalType(rng.Intn(math.MaxUint8))
-			inputs[i] = neuron.SignalType(rng.Intn(8))
+			// inputs[i] = neuron.SignalType(rng.Intn(int(neuron.MaxSignal())))
+			// inputs[i] = neuron.SignalType(rng.Intn(8))
+			inputs[i] = neuron.SignalType(rng.Intn(4))
 		}
 		return inputs
 	}
@@ -50,7 +52,8 @@ func Adder(econf EnvironmentConfig) *neuron.DNA {
 		for _, sig := range inputs {
 			expectedResult += sig
 		}
-		return neuron.ScoreType(math.Abs(float64(expectedResult - outputs[0])))
+
+		return neuron.ScoreType(math.Pow(float64(expectedResult-outputs[0]), 2))
 		// return int(math.Abs(float64(expectedResult-outputs[0]))) + (10 * (len(outputs) - 1))
 
 		// if outputs[0] == expectedResult {

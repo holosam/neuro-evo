@@ -9,6 +9,7 @@ import (
 func TestAdder(t *testing.T) {
 	econf := DefaultEnvConfig()
 	dna := Adder(econf)
+	fmt.Printf("Final DNA: %s\n", dna.PrettyPrint())
 
 	codes := make(map[neuron.IDType]*neuron.DNA, 1)
 	codes[0] = dna
@@ -22,7 +23,7 @@ func TestAdder(t *testing.T) {
 			results := gen.FireBrains([]neuron.SignalType{neuron.SignalType(i), neuron.SignalType(j)})
 			got := results[0].Outputs
 
-			fmt.Printf("%d + %d = %d|%d\n", i, j, neuron.SignalType(i+j), got[0])
+			fmt.Printf("%d + %d = %d|%d\n", i, j, neuron.SignalType(i+j), got[0].Output)
 		}
 	}
 

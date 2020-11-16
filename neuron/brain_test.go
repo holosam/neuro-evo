@@ -90,7 +90,7 @@ func TestDNADeepCopy(t *testing.T) {
 }
 
 func TestDNAPrettyPrint(t *testing.T) {
-	want := "(V0)=0:2<0[2]  (V1)=1:2<0[2]  (M0)=2:2"
+	want := "(V0)=0:2<0[2,]  (V1)=1:2<0[2,]  (M0)=2:2  "
 	d := SimpleTestDNA()
 	if got := d.PrettyPrint(); got != want {
 		t.Errorf("Want %s, got %s", want, got)
@@ -141,7 +141,7 @@ func TestBrainStep(t *testing.T) {
 			if want, got := true, source.isActive; want != got {
 				t.Errorf("Want %v, got %v", want, got)
 			}
-			if want, got := SignalType(3), source.output; want != got {
+			if want, got := SignalType(3), source.Output; want != got {
 				t.Errorf("Want %v, got %v", want, got)
 			}
 		}
@@ -164,7 +164,7 @@ func TestEyesight(t *testing.T) {
 	}
 
 	// Second step fires the motor neuron.
-	if want, got := SignalType(3), b.StepFunction()[0].output; want != got {
+	if want, got := SignalType(3), b.StepFunction()[0].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }
@@ -183,7 +183,7 @@ func TestSignalSeeds(t *testing.T) {
 	b.StepFunction()
 	got := b.StepFunction()
 
-	if want, got := SignalType(11), got[0].output; want != got {
+	if want, got := SignalType(11), got[0].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }
@@ -198,7 +198,7 @@ func TestSignalTraceBack(t *testing.T) {
 	b.StepFunction()
 	output := b.StepFunction()
 
-	if want, got := SignalType(11), output[0].output; want != got {
+	if want, got := SignalType(11), output[0].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 
@@ -206,21 +206,21 @@ func TestSignalTraceBack(t *testing.T) {
 	if want, got := 3, len(s2); want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if want, got := SignalType(8), s2[-1].output; want != got {
+	if want, got := SignalType(8), s2[-1].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if want, got := SignalType(1), s2[0].output; want != got {
+	if want, got := SignalType(1), s2[0].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if want, got := SignalType(2), s2[1].output; want != got {
+	if want, got := SignalType(2), s2[1].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 
 	s0 := s2[0].sources
-	if want, got := SignalType(0), s0[-1].output; want != got {
+	if want, got := SignalType(0), s0[-1].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if want, got := SignalType(1), s0[-2].output; want != got {
+	if want, got := SignalType(1), s0[-2].Output; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }
