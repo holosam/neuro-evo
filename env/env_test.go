@@ -14,8 +14,8 @@ func TestAdder(t *testing.T) {
 	codes := make(map[neuron.IDType]*neuron.DNA, 1)
 	codes[0] = dna
 
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
 			gen := neuron.NewGeneration(neuron.GenerationConfig{
 				MaxSteps: econf.Pconf.Gconf.MaxSteps,
 			}, codes)

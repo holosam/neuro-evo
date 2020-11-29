@@ -54,7 +54,7 @@ func (g *Generation) fireBrain(id IDType, inputs []SignalType, resChan chan Brai
 		inputs: inputs,
 	}
 
-	for step := 1; step <= g.config.MaxSteps; step++ {
+	for step := 0; step <= g.config.MaxSteps; step++ {
 		outputs := brain.StepFunction()
 		if len(outputs) > 0 {
 			result.Outputs = outputs

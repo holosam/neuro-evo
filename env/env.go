@@ -17,8 +17,8 @@ func DefaultEnvConfig() EnvironmentConfig {
 			DnaSeedSnippets:  20,
 			DnaSeedMutations: 5,
 
-			NumSpecies:   100,
-			Generations:  4000,
+			NumSpecies:   1000,
+			Generations:  500,
 			RoundsPerGen: 8,
 
 			NumParents: 3,
@@ -38,14 +38,17 @@ func Adder(econf EnvironmentConfig) *neuron.DNA {
 		inputs := make([]neuron.SignalType, 2)
 		for i := 0; i < 2; i++ {
 			// inputs[i] = neuron.SignalType(rng.Intn(int(neuron.MaxSignal())))
-			// inputs[i] = neuron.SignalType(rng.Intn(8))
-			inputs[i] = neuron.SignalType(rng.Intn(4))
+			inputs[i] = neuron.SignalType(rng.Intn(8))
+			// inputs[i] = neuron.SignalType(rng.Intn(4))
 		}
 		return inputs
 	}
 
 	econf.Pconf.FitnessFn = func(inputs []neuron.SignalType, outputs []neuron.SignalType) neuron.ScoreType {
-		if len(outputs) != 1 {
+		// if len(outputs) != 1 {
+		// 	return math.MaxUint32
+		// }
+		if len(outputs) == 0 {
 			return math.MaxUint32
 		}
 		expectedResult := neuron.SignalType(0)

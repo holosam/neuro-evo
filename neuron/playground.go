@@ -105,10 +105,12 @@ func (p *Playground) SimulatePlayground() {
 		for round := 0; round < p.config.RoundsPerGen; round++ {
 			inputs := p.config.GenInputsFn(round)
 			results := g.FireBrains(inputs)
+			// fmt.Printf("Gen %d, round %d, inputs = %v\n", gen+1, round+1, inputs)
 
 			for id, result := range results {
 				scores[id].score += p.scoreResult(id, result, inputs)
 				scores[id].allOutputs = append(scores[id].allOutputs, result.Outputs)
+				// fmt.Printf("ID %d got score %d, total is %d from output %v\n", id, p.scoreResult(id, result, inputs), scores[id].score, result.Outputs)
 			}
 		}
 
@@ -116,15 +118,15 @@ func (p *Playground) SimulatePlayground() {
 		sort.Slice(scores, func(i, j int) bool {
 			return scores[i].score < scores[j].score
 		})
-		p.winner = p.codes[scores[0].id]
+		p.winner = p.codes[scores[0].id].DeepCopy()
 
 		fmt.Printf("Gen %d scores: Min=%d 25th=%d 50th=%d 75th=%d Max=%d\n", gen,
 			scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
 			scores[3*len(scores)/4].score, scores[len(scores)-1].score)
 
-		newCodes := make(map[IDType]*DNA, len(p.codes))
-		topTier := p.config.NumSpecies / 5
-		for i := 0; i < p.config.NumSpecies; i++ {
+		topTier := p.config.NumSpecies / 4
+		newCodes := make(map[IDType]*DNA, topTier)
+		for i := 0; i < topTier; i++ {
 			parentScores := make([]SpeciesScore, 3)
 			parentScores[0] = scores[p.rnd.Intn(topTier)]
 			parentScores[1] = scores[p.rnd.Intn(topTier)]
@@ -140,9 +142,13 @@ func (p *Playground) SimulatePlayground() {
 				child = p.singleRandDNA()
 			}
 			p.mutateDNA(child)
-			newCodes[i] = child
+			newCodes[scores[p.config.NumSpecies-i-1].id] = child
+			// fmt.Printf("Breeding parent ids %v to get new child %s\n", parents, child.PrettyPrint())
 		}
-		p.codes = newCodes
+
+		for id, code := range newCodes {
+			p.codes[id] = code
+		}
 
 		if gen%10 == 0 {
 			fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
@@ -290,7 +296,7 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 }
 
 func (p *Playground) mutateDNA(dna *DNA) {
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 3; i++ {
 		nType := INTER
 		if p.rnd.Float32() < 0.02 {
 			nType = MOTOR
