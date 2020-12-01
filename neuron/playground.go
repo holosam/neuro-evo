@@ -66,7 +66,7 @@ func (p *Playground) singleRandDNA() *DNA {
 
 	numVision := len(p.config.GenInputsFn(0))
 	for i := 0; i < numVision; i++ {
-		dna.AddSnippet(SENSORY, p.randomOp())
+		dna.AddSnippet(SENSE, p.randomOp())
 	}
 
 	for i := 0; i < p.config.DnaSeedSnippets-numVision-1; i++ {
@@ -185,9 +185,9 @@ func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DN
 	// Seed the child DNA with starting IDs for each type of neuron, to avoid
 	// collisions when traversing different parent DNAs.
 	// Vision starts at 0.
-	child.NeuronIDs[SENSORY].InsertID(0)
+	child.NeuronIDs[SENSE].InsertID(0)
 	// Inter starts at len(vision) + 1.
-	numVision := p.codes[0].NeuronIDs[SENSORY].Length()
+	numVision := p.codes[0].NeuronIDs[SENSE].Length()
 	child.NeuronIDs[INTER].InsertID(numVision)
 	// Motor starts at the len(vision) + max(len(inter)) + 1.
 	maxID := 0
@@ -329,7 +329,7 @@ func (p *Playground) mutateDNA(dna *DNA) {
 					dna.RemoveSynapse(snipID, possibleSynID)
 				} else {
 					// Try skipping direct vision->motor.
-					// if (dna.NeuronIDs[SENSORY].HasID(snipID) && dna.NeuronIDs[INTER].HasID(possibleSynID)) || (dna.NeuronIDs[INTER].HasID(snipID) && dna.NeuronIDs[MOTOR].HasID(possibleSynID)) {
+					// if (dna.NeuronIDs[SENSE].HasID(snipID) && dna.NeuronIDs[INTER].HasID(possibleSynID)) || (dna.NeuronIDs[INTER].HasID(snipID) && dna.NeuronIDs[MOTOR].HasID(possibleSynID)) {
 					dna.AddSynapse(snipID, possibleSynID)
 					// }
 				}

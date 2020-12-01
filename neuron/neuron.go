@@ -95,31 +95,10 @@ func (n *Neuron) RemoveSynapse(id IDType) {
 	delete(n.synapses, id)
 }
 
-// Signal holds a value that this neuron is firing off.
-type Signal struct {
-	sources map[IDType]*Signal
-
-	neuronID IDType
-	isActive bool
-	Output   SignalType
-}
-
-func (n *Neuron) Fire(signals map[IDType]*Signal, sigChan chan *Signal) {
-	var output SignalType
-	initialized := false
-	for _, signal := range signals {
-		if !initialized {
-			output = signal.Output
-			initialized = true
-		} else {
-			output = n.op.operate(output, signal.Output)
-		}
+func (n *Neuron) Fire(inputs []SignalType) SignalType {
+	output := inputs[0]
+	for i := 1; i < len(inputs); i++ {
+		output = n.op.operate(output, inputs[i])
 	}
-
-	sigChan <- &Signal{
-		sources:  signals,
-		neuronID: n.id,
-		isActive: len(signals) >= 2,
-		Output:   output,
-	}
+	return output
 }

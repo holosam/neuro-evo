@@ -21,7 +21,7 @@ func TestRandDNA(t *testing.T) {
 	if got := len(dna.Snippets); got < 1 {
 		t.Errorf("Want at least 1, got %d", got)
 	}
-	if got := dna.NeuronIDs[SENSORY].Length(); got != 1 {
+	if got := dna.NeuronIDs[SENSE].Length(); got != 1 {
 		t.Errorf("Want 1, got %d", got)
 	}
 	if got := dna.NeuronIDs[MOTOR].Length(); got != 1 {
@@ -61,7 +61,7 @@ func TestPathwayTraversal(t *testing.T) {
 	motorSignal := CreateTestSignal(3)
 	motorSignal.neuronID = parent.NeuronIDs[MOTOR].GetId(0)
 
-	visionID0 := parent.NeuronIDs[SENSORY].GetId(0)
+	visionID0 := parent.NeuronIDs[SENSE].GetId(0)
 	visionSignal0 := CreateTestSignal(1)
 	visionSignal0.neuronID = visionID0
 	motorSignal.sources[visionID0] = visionSignal0
@@ -69,7 +69,7 @@ func TestPathwayTraversal(t *testing.T) {
 	visionSignal0.sources[-1] = CreateTestSignal(1)
 	visionSignal0.sources[-2] = CreateTestSignal(0)
 
-	visionID1 := parent.NeuronIDs[SENSORY].GetId(1)
+	visionID1 := parent.NeuronIDs[SENSE].GetId(1)
 	visionSignal1 := CreateTestSignal(2)
 	visionSignal1.neuronID = visionID1
 	motorSignal.sources[visionID1] = visionSignal1
@@ -87,11 +87,11 @@ func TestPathwayTraversal(t *testing.T) {
 		t.Errorf("Parent %s should be more complex than child %s", parent.PrettyPrint(), child.PrettyPrint())
 	}
 	// Should have chosen 1 of the vision neurons to traverse.
-	if got, want := child.NeuronIDs[SENSORY].Length(), 1; got != want {
+	if got, want := child.NeuronIDs[SENSE].Length(), 1; got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 	// Could have 0 or 1 seeds depending on the traversal.
-	if got, want := child.NeuronIDs[SENSORY].Length(), 1; got != want {
+	if got, want := child.NeuronIDs[SENSE].Length(), 1; got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }

@@ -12,29 +12,17 @@ func TestFireBrain(t *testing.T) {
 
 	resChan := make(chan BrainResult)
 	go g.fireBrain(0, []SignalType{1, 2}, resChan)
-	gotRes := <-resChan
+	got := <-resChan
 
-	wantRes := BrainResult{
+	want := BrainResult{
 		id:      0,
 		inputs:  []SignalType{1, 2},
-		Outputs: make([]Signal, 0),
+		Outputs: []SignalType{3},
 		steps:   2,
 	}
 
-	if got, want := len(gotRes.Outputs), 1; got != want {
+	if !reflect.DeepEqual(want, got) {
 		t.Errorf("Want %v, got %v", want, got)
-	} else {
-		if got, want := len(gotRes.Outputs[0].sources), 2; got != want {
-			t.Errorf("Want %v, got %v", want, got)
-		}
-		if got, want := gotRes.Outputs[0].Output, SignalType(3); got != want {
-			t.Errorf("Want %v, got %v", want, got)
-		}
-	}
-
-	gotRes.Outputs = make([]Signal, 0)
-	if !reflect.DeepEqual(wantRes, gotRes) {
-		t.Errorf("Want %v, got %v", wantRes, gotRes)
 	}
 }
 
@@ -46,7 +34,7 @@ func TestRunGeneration(t *testing.T) {
 	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
 	results := g.FireBrains([]SignalType{1, 2})
 
-	if got, want := results[1].Outputs, SignalType(3); got[0].Output != want {
+	if got, want := results[1].Outputs, SignalType(3); got[0] != want {
 		t.Errorf("Want %d, got %v", want, got)
 	}
 }
