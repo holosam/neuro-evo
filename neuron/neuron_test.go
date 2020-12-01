@@ -7,31 +7,26 @@ import (
 	"time"
 )
 
+func testOperator(t *testing.T, op OperatorType, inputs []SignalType, want SignalType) {
+	if got := op.operate(inputs); got != want {
+		t.Errorf("Got wrong value for op %d: inputs %v, got %d, want %d", op, inputs, got, want)
+	}
+}
+
 func TestOperators(t *testing.T) {
-	if got := AND.operate(9, 14); got != 8 {
-		t.Errorf("Got wrong AND value: %v", got)
-	}
-	if got := NAND.operate(MaxSignal(), MaxSignal()-4); got != 4 {
-		t.Errorf("Got wrong NAND value: %v", got)
-	}
-	if got := OR.operate(9, 10); got != 11 {
-		t.Errorf("Got wrong OR value: %v", got)
-	}
-	if got := NOR.operate(MaxSignal()-4, MaxSignal()-4); got != 4 {
-		t.Errorf("Got wrong NOR value: %v", got)
-	}
-	if got := XOR.operate(11, 12); got != 7 {
-		t.Errorf("Got wrong XOR value: %v", got)
-	}
-	if got := IFF.operate(MaxSignal(), 4); got != 4 {
-		t.Errorf("Got wrong IFF value: %v", got)
-	}
-	if got := TRUTH.operate(3, 7); got != MaxSignal() {
-		t.Errorf("Got wrong TRUTH value: %v", got)
-	}
-	if got := FALSIFY.operate(3, 7); got != 0 {
-		t.Errorf("Got wrong FALSIFY value: %v", got)
-	}
+	testOperator(t, AND, []SignalType{9, 14}, 8)
+	testOperator(t, NAND, []SignalType{MaxSignal(), MaxSignal() - 4}, 4)
+	testOperator(t, OR, []SignalType{9, 10}, 11)
+	testOperator(t, NOR, []SignalType{MaxSignal() - 4, MaxSignal() - 4}, 4)
+	testOperator(t, XOR, []SignalType{11, 12}, 7)
+	testOperator(t, IFF, []SignalType{MaxSignal(), 4}, 4)
+	testOperator(t, ADD, []SignalType{5, 6, 7}, 18)
+	testOperator(t, MULTIPLY, []SignalType{5, 6, 2}, 60)
+	testOperator(t, GCF, []SignalType{12, 9}, 3)
+	testOperator(t, MAX, []SignalType{7, 9}, 9)
+	testOperator(t, MIN, []SignalType{7, 9}, 7)
+	testOperator(t, TRUTH, []SignalType{3, 7}, MaxSignal())
+	testOperator(t, FALSIFY, []SignalType{3, 7}, 0)
 }
 
 func TestCommutative(t *testing.T) {
@@ -41,7 +36,7 @@ func TestCommutative(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			r1 := SignalType(rnd.Intn(int(MaxSignal())))
 			r2 := SignalType(rnd.Intn(int(MaxSignal())))
-			if op.operate(r1, r2) != op.operate(r2, r1) {
+			if op.operate([]SignalType{r1, r2}) != op.operate([]SignalType{r2, r1}) {
 				t.Errorf("Op %d is not commutative for %d and %d", opVal, r1, r2)
 			}
 		}
@@ -52,14 +47,14 @@ func TestAssociative(t *testing.T) {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for opVal := 0; opVal < NumOps; opVal++ {
 		op := interpretOp(opVal)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 50; i++ {
 			r1 := SignalType(rnd.Intn(int(MaxSignal())))
 			r2 := SignalType(rnd.Intn(int(MaxSignal())))
 			r3 := SignalType(rnd.Intn(int(MaxSignal())))
-			v1 := op.operate(op.operate(r1, r2), r3)
-			v2 := op.operate(op.operate(r2, r3), r1)
+			v1 := op.operate([]SignalType{r1, r2, r3})
+			v2 := op.operate([]SignalType{r2, r3, r1})
 			if v1 != v2 {
-				t.Errorf("Op %d is not associative for %d, %d, and %d", opVal, r1, r2, r3)
+				t.Errorf("Op %v is not associative for [%d, %d, %d], got %d vs %d", op, r1, r2, r3, v1, v2)
 			}
 		}
 	}
