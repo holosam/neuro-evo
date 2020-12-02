@@ -29,30 +29,6 @@ func TestRandDNA(t *testing.T) {
 	}
 }
 
-func TestResultScoring(t *testing.T) {
-	p := NewPlayground(PlaygroundConfig{
-		FitnessFn: func(inputs []SignalType, outputs []SignalType) ScoreType {
-			return ScoreType(outputs[0])
-		},
-	})
-
-	targetID := 0
-	p.codes[targetID] = SimpleTestDNA()
-
-	score := p.scoreResult(targetID, &BrainResult{
-		id:     targetID,
-		inputs: []SignalType{5, 20},
-		Outputs: []Signal{{
-			Output: 10,
-		}},
-		steps: 20,
-	}, []SignalType{})
-
-	if got, want := score, ScoreType(102007); got != want {
-		t.Errorf("Want %d, got %d", want, got)
-	}
-}
-
 func TestPathwayTraversal(t *testing.T) {
 	parent := SimpleTestDNA()
 	child := NewDNA()

@@ -1,71 +1,96 @@
 package neuron
 
-type BrainResult struct {
-	id      IDType
-	inputs  []SignalType
-	Outputs []SignalType
-	steps   int
+import "fmt"
+
+// GenerateInputsFunc returns a set of inputs, which is called when needed
+// (after each output). The actions param indicate how many outputs have
+// It's the responsibility of the owner of the function to
+// track the progress of the session and input values accordingly.
+// When this function returns an empty list, the simulation is ended.
+type GenerateInputsFunc func(actions int) []SignalType
+
+type ScoreType uint64
+
+// FitnessFunc scores the output based on its effect on the session.
+// It's only called when the brain has a full output, so the outputs param
+// doesn't need to be checked for unset values.
+type FitnessFunc func(outputs []SignalType) ScoreType
+
+type BrainScore struct {
+	// The ID is included in this struct since it's passed on channels
+	// and sorted so the score needs to travel with the ID.
+	id    IDType
+	score ScoreType
 }
 
 type GenerationConfig struct {
+	Rounds int
+	// Just a sanity check to prevent brains from going on forever.
 	MaxSteps int
+
+	InputsFn  GenerateInputsFunc
+	FitnessFn FitnessFunc
 }
 
+// Generation handles all of the brain simulations.
 type Generation struct {
 	config GenerationConfig
-	brains map[IDType]*Brain
+	codes  map[IDType]*DNA
 }
 
 func NewGeneration(gconf GenerationConfig, codes map[IDType]*DNA) *Generation {
-	g := &Generation{
+	return &Generation{
 		config: gconf,
-		brains: make(map[IDType]*Brain, len(codes)),
+		codes:  codes,
 	}
-
-	for id, dna := range codes {
-		g.brains[id] = Flourish(dna)
-	}
-	return g
 }
 
-func (g *Generation) FireBrains(inputs []SignalType) map[IDType]*BrainResult {
-	// Simulate all brains in separate goroutines.
-	resChan := make(chan BrainResult)
-	for id := range g.brains {
-		go g.fireBrain(id, inputs, resChan)
+func (g *Generation) FireBrains() map[IDType]BrainScore {
+	scores := make(map[IDType]BrainScore, len(g.codes))
+
+	for round := 0; round < g.config.Rounds; round++ {
+		// Simulate all brains in separate goroutines.
+		scoreChan := make(chan BrainScore)
+		for id := range g.codes {
+			go g.fireBrain(id, scoreChan)
+		}
+
+		// Wait for all the results to come in before ending the round.
+		for i := 0; i < len(g.codes); i++ {
+			result := <-scoreChan
+			scores[result.id] = result
+		}
 	}
 
-	// Wait for all the results to come in before returning.
-	results := make(map[IDType]*BrainResult, len(g.brains))
-	for i := 0; i < len(g.brains); i++ {
-		result := <-resChan
-		results[result.id] = &result
-	}
-
-	return results
+	return scores
 }
 
-func (g *Generation) fireBrain(id IDType, inputs []SignalType, resChan chan BrainResult) {
-	brain := g.brains[id]
-	brain.SeeInput(inputs)
+func (g *Generation) fireBrain(id IDType, scoreChan chan BrainScore) {
+	// Brains keep states between actions but reset each round.
+	brain := Flourish(g.codes[id])
+	score := ScoreType(0)
 
-	result := BrainResult{
-		id:     id,
-		inputs: inputs,
-	}
+	actions := 0
+	// Let's get this party started.
+	brain.SeeInput(g.config.InputsFn(actions))
 
 	for step := 1; step <= g.config.MaxSteps; step++ {
+		fmt.Printf("running brain step %d\n", step)
 		if !brain.StepFunction() {
 			continue
 		}
+		score += g.config.FitnessFn(brain.Output())
 
-		result.Outputs = brain.Output()
-		result.steps = step
-		resChan <- result
-		return
+		actions++
+		inputs := g.config.InputsFn(actions)
+		if len(inputs) == 0 {
+			break
+		}
+		brain.SeeInput(inputs)
 	}
 
-	result.Outputs = make([]SignalType, 0)
-	result.steps = g.config.MaxSteps
-	resChan <- result
+	scoreChan <- BrainScore{
+		id:    id,
+		score: score,
+	}
 }

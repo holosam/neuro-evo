@@ -100,32 +100,35 @@ func TestDNAPrettyPrint(t *testing.T) {
 func TestBrainStep(t *testing.T) {
 	d := NewDNA()
 	d.AddSnippet(INTER, OR)
+	d.SetSeed(0, 1)
 	d.AddSnippet(INTER, FALSIFY)
 	d.AddSynapse(0, 1)
 	b := Flourish(d)
 
-	b.addPendingSignal(0, SignalType(1))
 	b.addPendingSignal(0, SignalType(2))
 
-	if want, got := 1, len(b.pendingSignals); want != got {
-		t.Errorf("Want %d, got %d", want, got)
-	}
-	if want, got := 2, len(b.pendingSignals[0]); want != got {
-		t.Errorf("Want %d, got %d", want, got)
+	wantMap := make(map[IDType][]SignalType, 2)
+	wantMap[0] = []SignalType{1, 2}
+	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
+		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 
 	isDone := b.StepFunction()
 	if want, got := false, isDone; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if want, got := 1, len(b.pendingSignals); want != got {
-		t.Errorf("Want %d, got %d", want, got)
+
+	// The seed should be sticky for ID 0.
+	wantMap[0] = []SignalType{1}
+	wantMap[1] = []SignalType{3}
+	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
+		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 
 	// Ensure the pending signals aren't cleared without firing.
 	b.StepFunction()
-	if want, got := 1, len(b.pendingSignals); want != got {
-		t.Errorf("Want %d, got %d", want, got)
+	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
+		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 }
 

@@ -7,32 +7,24 @@ import (
 	"time"
 )
 
-type GenInputsFunc func(round int) []SignalType
-
-type ScoreType uint64
-
-// FitnessFunc scores the output outputs. Closer to 0 is better.
-type FitnessFunc func(inputs []SignalType, outputs []SignalType) ScoreType
-
 type PlaygroundConfig struct {
 	// Initialization
-	DnaSeedSnippets  int
-	DnaSeedMutations int
+	NumInputs  int
+	NumOutputs int
 
 	// Running the playground
-	NumSpecies   int
-	Generations  int
-	RoundsPerGen int
-	GenInputsFn  GenInputsFunc
+	NumSpecies  int
+	NumVariants int
+	Generations int
 
 	// Evolution
-	FitnessFn  FitnessFunc
 	NumParents int
 
 	// Nested configs
 	Gconf GenerationConfig
 }
 
+// Playground handles the speciation and evolution of DNA.
 type Playground struct {
 	config PlaygroundConfig
 	codes  map[IDType]*DNA
@@ -41,45 +33,29 @@ type Playground struct {
 	winner *DNA
 }
 
-type SpeciesScore struct {
-	id         IDType
-	score      ScoreType
-	allOutputs [][]Signal
-}
-
 func NewPlayground(config PlaygroundConfig) *Playground {
-	return &Playground{
+	p := &Playground{
 		config: config,
 		codes:  make(map[IDType]*DNA),
 		rnd:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
-}
 
-func (p *Playground) SeedRandDNA() {
 	for id := 0; id < p.config.NumSpecies; id++ {
-		p.codes[id] = p.singleRandDNA()
-	}
-}
-
-func (p *Playground) singleRandDNA() *DNA {
-	dna := NewDNA()
-
-	numVision := len(p.config.GenInputsFn(0))
-	for i := 0; i < numVision; i++ {
-		dna.AddSnippet(SENSE, p.randomOp())
-	}
-
-	for i := 0; i < p.config.DnaSeedSnippets-numVision-1; i++ {
-		dna.AddSnippet(INTER, p.randomOp())
+		dna := NewDNA()
+		for i := 0; i < config.NumInputs; i++ {
+			visionID := dna.AddSnippet(SENSE, OR)
+			dna.SetSeed(visionID, 0)
+		}
+		for i := 0; i < config.NumOutputs; i++ {
+			motorID := dna.AddSnippet(MOTOR, OR)
+			for j := 0; j < config.NumInputs; j++ {
+				dna.AddSynapse(dna.NeuronIDs[SENSE].GetId(j), motorID)
+			}
+		}
+		p.codes[id] = dna
 	}
 
-	dna.AddSnippet(MOTOR, p.randomOp())
-
-	for i := 0; i < p.config.DnaSeedMutations; i++ {
-		p.mutateDNA(dna)
-	}
-
-	return dna
+	return p
 }
 
 func (p *Playground) GetWinner() *DNA {
@@ -91,36 +67,15 @@ func (p *Playground) SimulatePlayground() {
 	for gen := 0; gen < p.config.Generations; gen++ {
 		g := NewGeneration(p.config.Gconf, p.codes)
 
-		scores := make([]SpeciesScore, p.config.NumSpecies)
-		for id := range p.codes {
-			scores[id] = SpeciesScore{
-				// Need to store the id as well because the slice gets sorted.
-				id:         id,
-				score:      0,
-				allOutputs: make([][]Signal, p.config.RoundsPerGen),
-			}
-		}
+		scores := g.FireBrains()
 
-		// Brains keep state between rounds.
-		for round := 0; round < p.config.RoundsPerGen; round++ {
-			inputs := p.config.GenInputsFn(round)
-			results := g.FireBrains(inputs)
-			// fmt.Printf("Gen %d, round %d, inputs = %v\n", gen+1, round+1, inputs)
-
-			for id, result := range results {
-				scores[id].score += p.scoreResult(id, result, inputs)
-				scores[id].allOutputs = append(scores[id].allOutputs, result.Outputs)
-				// fmt.Printf("ID %d got score %d, total is %d from output %v\n", id, p.scoreResult(id, result, inputs), scores[id].score, result.Outputs)
-			}
-		}
-
-		// Sorts low to high (lower scores are better).
+		// Sorts high to low (higher scores are better).
 		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].score < scores[j].score
+			return scores[i].score > scores[j].score
 		})
 		p.winner = p.codes[scores[0].id].DeepCopy()
 
-		fmt.Printf("Gen %d scores: Min=%d 25th=%d 50th=%d 75th=%d Max=%d\n", gen,
+		fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
 			scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
 			scores[3*len(scores)/4].score, scores[len(scores)-1].score)
 
@@ -156,29 +111,6 @@ func (p *Playground) SimulatePlayground() {
 	}
 }
 
-func (p *Playground) scoreResult(id IDType, result *BrainResult, inputs []SignalType) ScoreType {
-	outputs := make([]SignalType, len(result.Outputs))
-	for i, signal := range result.Outputs {
-		outputs[i] = signal.Output
-	}
-
-	score := p.config.FitnessFn(inputs, outputs)
-	// score := 10000 * p.config.FitnessFn(inputs, outputs)
-	// score -= 100 * ScoreType(result.steps)
-	// score += 100 * ScoreType(result.steps)
-	// score += 1 * ScoreType(dnaComplexity(p.codes[id]))
-	return score
-}
-
-func dnaComplexity(dna *DNA) int {
-	complexity := len(dna.Seeds)
-	for _, snip := range dna.Snippets {
-		complexity += 1 + len(snip.synapses)
-	}
-	return complexity
-}
-
-// Move to generation.go? Along with rounds and SpeciesScore
 func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DNA {
 	child := NewDNA()
 
@@ -186,18 +118,15 @@ func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DN
 	// collisions when traversing different parent DNAs.
 	// Vision starts at 0.
 	child.NeuronIDs[SENSE].InsertID(0)
-	// Inter starts at len(vision) + 1.
+	// Motor starts at len(vision) + 1.
 	numVision := p.codes[0].NeuronIDs[SENSE].Length()
-	child.NeuronIDs[INTER].InsertID(numVision)
-	// Motor starts at the len(vision) + max(len(inter)) + 1.
-	maxID := 0
-	for _, parentID := range dnaIDs {
-		numVisAndInter := numVision + p.codes[parentID].NeuronIDs[INTER].Length()
-		if numVisAndInter > maxID {
-			maxID = numVisAndInter
-		}
-	}
-	child.NeuronIDs[MOTOR].InsertID(maxID)
+	child.NeuronIDs[MOTOR].InsertID(numVision)
+	// Inter starts at the len(vision) + max(len(inter) + 1.
+	child.NeuronIDs[INTER].InsertID(numVision + p.codes[0].NeuronIDs[MOTOR].Length())
+
+	//
+	// Looked at up to here
+	//
 
 	for parentIndex, parentID := range dnaIDs {
 		parent := p.codes[parentID]
@@ -297,11 +226,7 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 
 func (p *Playground) mutateDNA(dna *DNA) {
 	for i := 0; i < 3; i++ {
-		nType := INTER
-		if p.rnd.Float32() < 0.02 {
-			nType = MOTOR
-		}
-		dna.AddSnippet(nType, p.randomOp())
+		dna.AddSnippet(INTER, p.randomOp())
 	}
 
 	for snipID, snip := range dna.Snippets {

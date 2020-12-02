@@ -260,6 +260,7 @@ func (b *Brain) SeeInput(sigs []SignalType) {
 		// Send the signal to the vision ID at the signal's index.
 		b.addPendingSignal(b.dna.NeuronIDs[SENSE].GetId(i), sig)
 	}
+	fmt.Printf("full pending signals %v\n", b.pendingSignals)
 }
 
 func (b *Brain) Output() []SignalType {
@@ -267,6 +268,8 @@ func (b *Brain) Output() []SignalType {
 	for id, sig := range b.outputSignals {
 		output[b.dna.NeuronIDs[MOTOR].GetIndex(id)] = sig
 	}
+	// Clear the output after it's used to make way for a new action.
+	b.outputSignals = make(map[IDType]SignalType, b.dna.NeuronIDs[MOTOR].Length())
 	return output
 }
 
@@ -279,7 +282,6 @@ func (b *Brain) StepFunction() bool {
 
 	done := false
 	for neuronID, inputs := range b.pendingSignals {
-		fmt.Printf("checking neuron %d with pending signals: %v\n", neuronID, inputs)
 		// Neurons fire when they have at least 2 signals.
 		if len(inputs) < 2 {
 			continue
@@ -287,11 +289,16 @@ func (b *Brain) StepFunction() bool {
 
 		neuron := b.dna.Snippets[neuronID]
 		output := neuron.Fire(inputs)
-		fmt.Printf("firing neuron %v and got output: %d\n", neuron, output)
+		fmt.Printf("firing neuron %v with inputs %v and got output: %d\n", neuron, inputs, output)
 
 		// Clear this neuron's pending signals now that it has fired.
 		// It's okay to edit the underlying map while iterating.
 		delete(b.pendingSignals, neuronID)
+
+		// Seed inputs are "sticky" so they come back after every trigger.
+		if seed, ok := b.dna.Seeds[neuronID]; ok {
+			nextPending[neuronID] = append(nextPending[neuronID], seed)
+		}
 
 		if b.dna.NeuronIDs[MOTOR].HasID(neuronID) {
 			// Add the signal to the outputSignals only if it's the first time this
@@ -312,15 +319,8 @@ func (b *Brain) StepFunction() bool {
 
 	// Merge in nextPending now that the step is over.
 	for neuronID, signals := range nextPending {
-		delete(b.pendingSignals, neuronID)
-
 		for _, sig := range signals {
 			b.addPendingSignal(neuronID, sig)
-		}
-
-		// Seed inputs are "sticky" so they come back after every trigger.
-		if seed, ok := b.dna.Seeds[neuronID]; ok {
-			b.addPendingSignal(neuronID, seed)
 		}
 	}
 

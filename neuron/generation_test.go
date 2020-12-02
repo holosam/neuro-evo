@@ -5,20 +5,34 @@ import (
 	"testing"
 )
 
+func testGConf() GenerationConfig {
+	return GenerationConfig{
+		Rounds:   2,
+		MaxSteps: 10,
+		InputsFn: func(actions int) []SignalType {
+			if actions >= 2 {
+				return []SignalType{}
+			}
+			return []SignalType{SignalType(actions + 1), SignalType(actions + 2)}
+		},
+		FitnessFn: func(outputs []SignalType) ScoreType {
+			return ScoreType(outputs[0])
+		},
+	}
+}
+
 func TestFireBrain(t *testing.T) {
 	codes := make(map[IDType]*DNA, 1)
 	codes[0] = SimpleTestDNA()
-	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
+	g := NewGeneration(testGConf(), codes)
 
-	resChan := make(chan BrainResult)
-	go g.fireBrain(0, []SignalType{1, 2}, resChan)
+	resChan := make(chan BrainScore)
+	go g.fireBrain(0, resChan)
 	got := <-resChan
 
-	want := BrainResult{
-		id:      0,
-		inputs:  []SignalType{1, 2},
-		Outputs: []SignalType{3},
-		steps:   2,
+	want := BrainScore{
+		id:    0,
+		score: 6,
 	}
 
 	if !reflect.DeepEqual(want, got) {
@@ -31,10 +45,20 @@ func TestRunGeneration(t *testing.T) {
 	codes[0] = SimpleTestDNA()
 	codes[1] = SimpleTestDNA()
 
-	g := NewGeneration(GenerationConfig{MaxSteps: 10}, codes)
-	results := g.FireBrains([]SignalType{1, 2})
+	g := NewGeneration(testGConf(), codes)
+	results := g.FireBrains()
 
-	if got, want := results[1].Outputs, SignalType(3); got[0] != want {
-		t.Errorf("Want %d, got %v", want, got)
+	want := make(map[IDType]BrainScore)
+	want[0] = BrainScore{
+		id:    0,
+		score: 6,
+	}
+	want[1] = BrainScore{
+		id:    1,
+		score: 6,
+	}
+
+	if !reflect.DeepEqual(want, results) {
+		t.Errorf("Want %v, got %v", want, results)
 	}
 }
