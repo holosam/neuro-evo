@@ -2,6 +2,8 @@ package neuron
 
 import (
 	"fmt"
+	"log"
+	"sort"
 	"strings"
 )
 
@@ -17,26 +19,32 @@ func NewIndexedIDs() *IndexedIDs {
 	}
 }
 
-func (x *IndexedIDs) InsertID(id IDType) {
-	if !x.HasID(id) {
-		nextIndex := x.Length()
-		x.IDToIndex[id] = nextIndex
-		x.IndexToID[nextIndex] = id
+func (x *IndexedIDs) InsertID(id IDType) int {
+	if x.HasID(id) {
+		log.Fatalf("Indexed IDs already has %d", id)
 	}
+
+	nextIndex := x.Length()
+	x.IDToIndex[id] = nextIndex
+	x.IndexToID[nextIndex] = id
+	return nextIndex
 }
 
 func (x *IndexedIDs) RemoveID(id IDType) {
-	if index, exists := x.IDToIndex[id]; exists {
-		length := x.Length()
-		for i := index; i < length-1; i++ {
-			idToMove := x.IndexToID[i+1]
-			x.IndexToID[i] = idToMove
-			x.IDToIndex[idToMove] = i
-		}
-
-		delete(x.IDToIndex, id)
-		delete(x.IndexToID, length-1)
+	index, exists := x.IDToIndex[id]
+	if !exists {
+		log.Fatalf("Indexed IDs doesn't have id %d", id)
 	}
+
+	length := x.Length()
+	for i := index; i < length-1; i++ {
+		idToMove := x.IndexToID[i+1]
+		x.IndexToID[i] = idToMove
+		x.IDToIndex[idToMove] = i
+	}
+
+	delete(x.IDToIndex, id)
+	delete(x.IndexToID, length-1)
 }
 
 func (x *IndexedIDs) HasID(id IDType) bool {
@@ -73,162 +81,120 @@ func (x *IndexedIDs) Copy() *IndexedIDs {
 	return c
 }
 
-type NeuronType int
+type Conglomerate struct {
+	NeuronIDs map[NeuronType]*IndexedIDs
+	Synapses  map[IDType]Synapse
+	nextSynID IDType
+}
 
-const (
-	SENSE NeuronType = iota
-	INTER
-	MOTOR
-)
+func NewConglomerate() *Conglomerate {
+	c := &Conglomerate{
+		NeuronIDs: make(map[NeuronType]*IndexedIDs, len(neuronTypes)),
+		Synapses:  make(map[IDType]Synapse),
+		nextSynID: 0,
+	}
+	for _, nType := range neuronTypes {
+		c.NeuronIDs[nType] = NewIndexedIDs()
+	}
+	return c
+}
 
-var neuronTypes = []NeuronType{SENSE, INTER, MOTOR}
+func (c *Conglomerate) AddVisionAndMotor(numInputs int, numOutputs int) {
+	id := 0
+	for ; id < numInputs; id++ {
+		c.NeuronIDs[SENSE].InsertID(id)
+	}
+
+	for ; id < numInputs+numOutputs; id++ {
+		c.NeuronIDs[MOTOR].InsertID(id)
+		for v := 0; v < numInputs; v++ {
+			c.AddSynapse(v, id)
+		}
+	}
+}
+
+func (c *Conglomerate) AddInterNeuron(syn Synapse) IDType {
+	newID := c.NeuronIDs[SENSE].Length() + c.NeuronIDs[MOTOR].Length() + c.NeuronIDs[INTER].Length()
+	c.NeuronIDs[INTER].InsertID(newID)
+	c.AddSynapse(syn.src, newID)
+	c.AddSynapse(newID, syn.dst)
+	return newID
+}
+
+func (c *Conglomerate) AddSynapse(src, dst IDType) IDType {
+	syn := Synapse{
+		src: src,
+		dst: dst,
+	}
+	c.Synapses[c.nextSynID] = syn
+	c.nextSynID++
+	return c.nextSynID - 1
+}
 
 type DNA struct {
-	NeuronIDs map[NeuronType]*IndexedIDs
-	Snippets  map[IDType]*Neuron
-	NextID    IDType
-
-	Seeds map[IDType]SignalType
+	Source   *Conglomerate
+	Neurons  map[IDType]*Neuron
+	Synapses IDSet
 }
 
-func NewDNA() *DNA {
-	d := &DNA{
-		NeuronIDs: make(map[NeuronType]*IndexedIDs, len(neuronTypes)),
-		Snippets:  make(map[IDType]*Neuron, 0),
-		NextID:    0,
-		Seeds:     make(map[IDType]SignalType, 0),
-	}
-
-	for _, nType := range neuronTypes {
-		d.NeuronIDs[nType] = NewIndexedIDs()
-	}
-	return d
-}
-
-func (src *DNA) DeepCopy() *DNA {
-	dst := &DNA{
-		NeuronIDs: make(map[NeuronType]*IndexedIDs, len(neuronTypes)),
-		Snippets:  make(map[IDType]*Neuron, len(src.Snippets)),
-		NextID:    src.NextID,
-		Seeds:     make(map[IDType]SignalType, len(src.Seeds)),
-	}
-
-	for nType, indexedIDs := range src.NeuronIDs {
-		dst.NeuronIDs[nType] = indexedIDs.Copy()
-	}
-
-	for id, neuron := range src.Snippets {
-		n := NewNeuron(id, neuron.op)
-		for syn := range neuron.synapses {
-			n.AddSynapse(syn)
-		}
-		dst.Snippets[id] = n
-	}
-
-	for id, seed := range src.Seeds {
-		dst.Seeds[id] = seed
-	}
-
-	return dst
-}
-
-func (d *DNA) AddSnippet(nType NeuronType, op OperatorType) IDType {
-	addedID := d.NextID
-	d.Snippets[addedID] = NewNeuron(addedID, op)
-	d.NeuronIDs[nType].InsertID(addedID)
-	d.NextID++
-	return addedID
-}
-
-func (d *DNA) DeleteSnippet(id IDType) {
-	delete(d.Snippets, id)
-
-	for _, nType := range neuronTypes {
-		d.NeuronIDs[nType].RemoveID(id)
-	}
-
-	delete(d.Seeds, id)
-
-	for _, snip := range d.Snippets {
-		snip.RemoveSynapse(id)
+func NewDNA(source *Conglomerate) *DNA {
+	return &DNA{
+		Source:   source,
+		Neurons:  make(map[IDType]*Neuron),
+		Synapses: make(IDSet),
 	}
 }
 
-func (d *DNA) AddSynapse(snipID, synID IDType) {
-	if d.NeuronIDs[MOTOR].HasID(snipID) {
-		return
-	}
-
-	if snip, snipExists := d.Snippets[snipID]; snipExists {
-		if _, synExists := d.Snippets[synID]; synExists {
-			snip.AddSynapse(synID)
-		}
-	}
+func (d *DNA) SetNeuron(id IDType, op OperatorType) {
+	d.Neurons[id] = NewNeuron(op)
 }
 
-func (d *DNA) RemoveSynapse(snipID, synID IDType) {
-	if snip, snipExists := d.Snippets[snipID]; snipExists {
-		snip.RemoveSynapse(synID)
-	}
+func (d *DNA) AddSynapse(id IDType) {
+	d.Synapses[id] = member
 }
 
 func (d *DNA) SetSeed(id IDType, seed SignalType) {
-	d.Seeds[id] = seed
+	d.Neurons[id].SetSeed(seed)
 }
 
 func (d *DNA) RemoveSeed(id IDType) {
-	delete(d.Seeds, id)
-}
-
-func (d *DNA) GetNeuronType(id IDType) NeuronType {
-	for _, nType := range neuronTypes {
-		if d.NeuronIDs[nType].HasID(id) {
-			return nType
-		}
-	}
-	return -1
+	d.Neurons[id].RemoveSeed()
 }
 
 func (d *DNA) PrettyPrint() string {
 	var sb strings.Builder
-	sortedSnips := make([]*Neuron, d.NextID)
-	for id, snip := range d.Snippets {
-		sortedSnips[id] = snip
-	}
 
-	for id, snip := range sortedSnips {
-		if snip == nil {
-			continue
+	for _, nType := range neuronTypes {
+		nTypeChar := "I"
+		if nType == SENSE {
+			nTypeChar = "V"
+		} else if nType == MOTOR {
+			nTypeChar = "M"
 		}
+		for index := 0; index < d.Source.NeuronIDs[nType].Length(); index++ {
+			neuronID := d.Source.NeuronIDs[nType].GetId(index)
+			neuron := d.Neurons[neuronID]
 
-		if d.NeuronIDs[SENSE].HasID(id) {
-			sb.WriteString(fmt.Sprintf("(V%d)=", d.NeuronIDs[SENSE].GetIndex(id)))
-		}
-
-		if d.NeuronIDs[MOTOR].HasID(id) {
-			sb.WriteString(fmt.Sprintf("(M%d)=", d.NeuronIDs[MOTOR].GetIndex(id)))
-		}
-
-		sb.WriteString(fmt.Sprintf("%d:%d", id, snip.op))
-
-		if seed, exists := d.Seeds[id]; exists {
-			sb.WriteString(fmt.Sprintf("<%d", seed))
-		}
-
-		if len(snip.synapses) > 0 {
-			sb.WriteString("[")
-			sortedSyns := make([]bool, d.NextID)
-			for synapse := range snip.synapses {
-				sortedSyns[synapse] = true
+			sb.WriteString(fmt.Sprintf("%d (%s%d) = op%d", neuronID, nTypeChar, index, neuron.op))
+			if neuron.hasSeed {
+				sb.WriteString(fmt.Sprintf(" <%d>", neuron.seed))
 			}
-			for synID, exists := range sortedSyns {
-				if exists {
-					sb.WriteString(fmt.Sprintf("%d,", synID))
+
+			sortedDstIDs := make([]IDType, 0)
+			for synID := range d.Synapses {
+				syn := d.Source.Synapses[synID]
+				if syn.src == neuronID {
+					sortedDstIDs = append(sortedDstIDs, syn.dst)
 				}
 			}
-			sb.WriteString("]")
+			if len(sortedDstIDs) > 0 {
+				sort.Slice(sortedDstIDs, func(i, j int) bool {
+					return sortedDstIDs[i] < sortedDstIDs[j]
+				})
+				sb.WriteString(fmt.Sprintf(" %v", sortedDstIDs))
+			}
+			sb.WriteString("\n")
 		}
-		sb.WriteString("  ")
 	}
 	return sb.String()
 }
@@ -237,18 +203,26 @@ func (d *DNA) PrettyPrint() string {
 type Brain struct {
 	dna            *DNA
 	pendingSignals map[IDType][]SignalType
-	outputSignals  map[IDType]SignalType
+	// outputSignals is a map instead of slice to tell which motor neurons have
+	// received and set an output.
+	outputSignals map[IDType]SignalType
+	synapses      map[IDType]IDSet
 }
 
 func Flourish(dna *DNA) *Brain {
 	b := &Brain{
 		dna:            dna,
-		pendingSignals: make(map[IDType][]SignalType, len(dna.Snippets)),
-		outputSignals:  make(map[IDType]SignalType, dna.NeuronIDs[MOTOR].Length()),
+		pendingSignals: make(map[IDType][]SignalType, len(dna.Neurons)),
+		outputSignals:  make(map[IDType]SignalType, dna.Source.NeuronIDs[MOTOR].Length()),
+		synapses:       make(map[IDType]IDSet),
 	}
 
-	for id, seed := range dna.Seeds {
-		b.addPendingSignal(id, seed)
+	for synID := range dna.Synapses {
+		syn := dna.Source.Synapses[synID]
+		if _, ok := b.synapses[syn.src]; !ok {
+			b.synapses[syn.src] = make(IDSet)
+		}
+		b.synapses[syn.src][syn.dst] = member
 	}
 
 	return b
@@ -258,7 +232,7 @@ func (b *Brain) SeeInput(sigs []SignalType) {
 	for i, sig := range sigs {
 		fmt.Printf("input for signal %d is %d\n", i, sig)
 		// Send the signal to the vision ID at the signal's index.
-		b.addPendingSignal(b.dna.NeuronIDs[SENSE].GetId(i), sig)
+		b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(i), sig)
 	}
 	fmt.Printf("full pending signals %v\n", b.pendingSignals)
 }
@@ -266,10 +240,10 @@ func (b *Brain) SeeInput(sigs []SignalType) {
 func (b *Brain) Output() []SignalType {
 	output := make([]SignalType, len(b.outputSignals))
 	for id, sig := range b.outputSignals {
-		output[b.dna.NeuronIDs[MOTOR].GetIndex(id)] = sig
+		output[b.dna.Source.NeuronIDs[MOTOR].GetIndex(id)] = sig
 	}
 	// Clear the output after it's used to make way for a new action.
-	b.outputSignals = make(map[IDType]SignalType, b.dna.NeuronIDs[MOTOR].Length())
+	b.outputSignals = make(map[IDType]SignalType, b.dna.Source.NeuronIDs[MOTOR].Length())
 	return output
 }
 
@@ -278,16 +252,21 @@ func (b *Brain) StepFunction() bool {
 	// firing is done. This avoids a race condition where a synapse would add
 	// a pending signal to the map and then be cleared later if that neuron fires
 	// too.
-	nextPending := make(map[IDType][]SignalType, len(b.dna.Snippets))
+	nextPending := make(map[IDType][]SignalType, len(b.dna.Neurons))
 
 	done := false
 	for neuronID, inputs := range b.pendingSignals {
+		numInputs := len(inputs)
+		if b.dna.Neurons[neuronID].hasSeed {
+			numInputs++
+		}
+
 		// Neurons fire when they have at least 2 signals.
-		if len(inputs) < 2 {
+		if numInputs < 2 {
 			continue
 		}
 
-		neuron := b.dna.Snippets[neuronID]
+		neuron := b.dna.Neurons[neuronID]
 		output := neuron.Fire(inputs)
 		fmt.Printf("firing neuron %v with inputs %v and got output: %d\n", neuron, inputs, output)
 
@@ -295,12 +274,7 @@ func (b *Brain) StepFunction() bool {
 		// It's okay to edit the underlying map while iterating.
 		delete(b.pendingSignals, neuronID)
 
-		// Seed inputs are "sticky" so they come back after every trigger.
-		if seed, ok := b.dna.Seeds[neuronID]; ok {
-			nextPending[neuronID] = append(nextPending[neuronID], seed)
-		}
-
-		if b.dna.NeuronIDs[MOTOR].HasID(neuronID) {
+		if b.dna.Source.NeuronIDs[MOTOR].HasID(neuronID) {
 			// Add the signal to the outputSignals only if it's the first time this
 			// motor neuron has fired.
 			if _, ok := b.outputSignals[neuronID]; !ok {
@@ -308,11 +282,11 @@ func (b *Brain) StepFunction() bool {
 			}
 			fmt.Printf("output signals: %v\n", b.outputSignals)
 			// Done is true if all motor neurons have an output.
-			done = len(b.outputSignals) == b.dna.NeuronIDs[MOTOR].Length()
+			done = len(b.outputSignals) == b.dna.Source.NeuronIDs[MOTOR].Length()
 		}
 
 		// Queue up signal for all downstream neurons.
-		for synID := range neuron.synapses {
+		for synID := range b.synapses[neuronID] {
 			nextPending[synID] = append(nextPending[synID], output)
 		}
 	}

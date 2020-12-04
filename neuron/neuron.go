@@ -110,30 +110,49 @@ type IDSet = map[IDType]void
 
 var member void
 
+type NeuronType int
+
+const (
+	SENSE NeuronType = iota
+	INTER
+	MOTOR
+)
+
+var neuronTypes = []NeuronType{SENSE, INTER, MOTOR}
+
 type Neuron struct {
-	id       IDType
-	op       OperatorType
-	synapses IDSet
+	op OperatorType
+
+	hasSeed bool
+	seed    SignalType
 }
 
-func NewNeuron(id IDType, op OperatorType) *Neuron {
+func NewNeuron(op OperatorType) *Neuron {
 	return &Neuron{
-		id:       id,
-		op:       op,
-		synapses: make(IDSet),
+		op:      op,
+		hasSeed: false,
+		seed:    0,
 	}
 }
 
-func (n *Neuron) AddSynapse(id IDType) {
-	if id != n.id {
-		n.synapses[id] = member
-	}
+func (n *Neuron) SetSeed(seed SignalType) {
+	n.seed = seed
+	n.hasSeed = true
 }
 
-func (n *Neuron) RemoveSynapse(id IDType) {
-	delete(n.synapses, id)
+func (n *Neuron) RemoveSeed() {
+	n.hasSeed = false
 }
 
 func (n *Neuron) Fire(inputs []SignalType) SignalType {
+	// Seed inputs are "sticky" so they come back for every trigger.
+	if n.hasSeed {
+		inputs = append(inputs, n.seed)
+	}
 	return n.op.operate(inputs)
+}
+
+type Synapse struct {
+	src IDType
+	dst IDType
 }

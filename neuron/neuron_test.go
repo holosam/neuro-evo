@@ -2,7 +2,6 @@ package neuron
 
 import (
 	"math/rand"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -60,23 +59,14 @@ func TestAssociative(t *testing.T) {
 	}
 }
 
-func TestSynapses(t *testing.T) {
-	n := NewNeuron(0, IFF)
-	n.AddSynapse(0) // Can't add own ID.
-	n.AddSynapse(1)
-	n.AddSynapse(2)
-	n.RemoveSynapse(2)
-	want := make(IDSet)
-	want[1] = member
-	if got := n.synapses; !reflect.DeepEqual(n.synapses, want) {
+func TestFire(t *testing.T) {
+	n := NewNeuron(OR)
+	if got, want := n.Fire([]SignalType{1, 2, 3, 4, 5}), SignalType(7); got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-}
 
-func TestFire(t *testing.T) {
-	n := NewNeuron(0, OR)
-	got := n.Fire([]SignalType{1, 2, 3, 4, 5})
-	if want := SignalType(7); got != want {
+	n.SetSeed(8)
+	if got, want := n.Fire([]SignalType{3}), SignalType(11); got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }

@@ -7,18 +7,23 @@ import (
 
 // Two vision neurons pointing at a motor neuron.
 func SimpleTestDNA() *DNA {
-	d := NewDNA()
-	v0 := d.AddSnippet(SENSE, OR)
-	d.SetSeed(v0, 0)
+	c := NewConglomerate()
+	c.AddVisionAndMotor(2, 1)
 
-	v1 := d.AddSnippet(SENSE, OR)
-	d.SetSeed(v1, 0)
+	d := NewDNA(c)
+	d.SetNeuron(0, OR)
+	d.SetSeed(0, 0)
+	d.SetNeuron(1, OR)
+	d.SetSeed(1, 0)
 
-	m0 := d.AddSnippet(MOTOR, OR)
-	d.AddSynapse(v0, m0)
-	d.AddSynapse(v1, m0)
-
+	d.SetNeuron(2, OR)
+	d.AddSynapse(0)
+	d.AddSynapse(1)
 	return d
+}
+
+func EqualIndexedIDs(got, want *IndexedIDs) bool {
+	return reflect.DeepEqual(want.IDToIndex, got.IDToIndex) && reflect.DeepEqual(want.IndexToID, got.IndexToID)
 }
 
 func TestIndexedIDs(t *testing.T) {
@@ -60,55 +65,68 @@ func TestIndexedIDs(t *testing.T) {
 }
 
 func TestSnippetEditing(t *testing.T) {
-	dna := SimpleTestDNA()
-	dna.AddSnippet(INTER, IFF) // id=3
-	dna.DeleteSnippet(1)
+	c := NewConglomerate()
+	c.AddVisionAndMotor(2, 2)
 
-	if dna.NeuronIDs[SENSE].HasID(1) {
-		t.Errorf("VisionIDs should not have id 1")
+	expectedVisionIDs := NewIndexedIDs()
+	expectedVisionIDs.InsertID(0)
+	expectedVisionIDs.InsertID(1)
+	expectedMotorIDs := NewIndexedIDs()
+	expectedMotorIDs.InsertID(2)
+	expectedMotorIDs.InsertID(3)
+	if got, want := c.NeuronIDs[SENSE], expectedVisionIDs; !EqualIndexedIDs(got, want) {
+		t.Errorf("Expected equal vision ids, got %v, want %v", got, want)
 	}
-	if got, want := len(dna.Snippets), 3; got != want {
-		t.Errorf("Want %v, got %v", want, got)
-	}
-	if got, want := dna.NextID, 4; got != want {
-		t.Errorf("Want %v, got %v", want, got)
-	}
-}
-
-func TestDNADeepCopy(t *testing.T) {
-	orig := SimpleTestDNA()
-	copy := orig.DeepCopy()
-	if !reflect.DeepEqual(orig, copy) {
-		t.Errorf("Want equal, orig: %v, copy: %v", orig, copy)
+	if got, want := c.NeuronIDs[MOTOR], expectedMotorIDs; !EqualIndexedIDs(got, want) {
+		t.Errorf("Expected equal motor ids, got %v, want %v", got, want)
 	}
 
-	orig.AddSnippet(INTER, XOR)
-	orig.AddSynapse(0, 1)
-	if reflect.DeepEqual(orig, copy) {
-		t.Errorf("Want not equal, orig: %v, copy: %v", orig, copy)
+	expectedSyns := make(map[IDType]Synapse)
+	expectedSyns[0] = Synapse{src: 0, dst: 2}
+	expectedSyns[1] = Synapse{src: 1, dst: 2}
+	expectedSyns[2] = Synapse{src: 0, dst: 3}
+	expectedSyns[3] = Synapse{src: 1, dst: 3}
+	if got, want := c.Synapses, expectedSyns; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Expected equal synapses, got %v, want %v", got, want)
 	}
+
+	c.AddInterNeuron(c.Synapses[3])
+
+	expectedInterIDs := NewIndexedIDs()
+	expectedInterIDs.InsertID(4)
+	if got, want := c.NeuronIDs[INTER], expectedInterIDs; !EqualIndexedIDs(got, want) {
+		t.Errorf("Expected equal inter ids, got %v, want %v", got, want)
+	}
+
+	expectedSyns[4] = Synapse{src: 1, dst: 4}
+	expectedSyns[5] = Synapse{src: 4, dst: 3}
+
 }
 
 func TestDNAPrettyPrint(t *testing.T) {
-	want := "(V0)=0:2<0[2,]  (V1)=1:2<0[2,]  (M0)=2:2  "
-	d := SimpleTestDNA()
-	if got := d.PrettyPrint(); got != want {
+	want := "0 (V0) = op2 <0> [2]\n1 (V1) = op2 <0> [2]\n2 (M0) = op2\n"
+	if got := SimpleTestDNA().PrettyPrint(); got != want {
 		t.Errorf("Want %s, got %s", want, got)
 	}
 }
 
 func TestBrainStep(t *testing.T) {
-	d := NewDNA()
-	d.AddSnippet(INTER, OR)
+	c := NewConglomerate()
+	c.NeuronIDs[INTER].InsertID(0)
+	c.NeuronIDs[INTER].InsertID(1)
+	c.AddSynapse(0, 1)
+
+	d := NewDNA(c)
+	d.SetNeuron(0, OR)
 	d.SetSeed(0, 1)
-	d.AddSnippet(INTER, FALSIFY)
-	d.AddSynapse(0, 1)
+	d.SetNeuron(1, FALSIFY)
+	d.AddSynapse(0)
 	b := Flourish(d)
 
 	b.addPendingSignal(0, SignalType(2))
 
 	wantMap := make(map[IDType][]SignalType, 2)
-	wantMap[0] = []SignalType{1, 2}
+	wantMap[0] = []SignalType{2}
 	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
 		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
@@ -118,8 +136,7 @@ func TestBrainStep(t *testing.T) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 
-	// The seed should be sticky for ID 0.
-	wantMap[0] = []SignalType{1}
+	delete(wantMap, 0)
 	wantMap[1] = []SignalType{3}
 	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
 		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
@@ -146,25 +163,6 @@ func TestEyesightAndMuscles(t *testing.T) {
 		t.Fatalf("Want %v, got %v", want, got)
 	}
 	if want, got := SignalType(3), b.Output()[0]; want != got {
-		t.Errorf("Want %v, got %v", want, got)
-	}
-}
-
-func TestSignalSeeds(t *testing.T) {
-	d := NewDNA()
-	d.AddSnippet(INTER, OR)
-	d.AddSnippet(MOTOR, OR)
-	d.AddSynapse(0, 1)
-	d.SetSeed(1, 8)
-
-	b := Flourish(d)
-	b.addPendingSignal(0, SignalType(1))
-	b.addPendingSignal(0, SignalType(2))
-
-	b.StepFunction()
-	b.StepFunction()
-
-	if want, got := SignalType(11), b.Output()[0]; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }

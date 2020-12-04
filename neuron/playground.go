@@ -7,24 +7,37 @@ import (
 	"time"
 )
 
+type EvolutionConfig struct {
+	// Number of parents to combine for offspring.
+	Parents int
+	// Percent of species that die off each generation.
+	BottomTierPercent float32
+}
+
+type MutationConfig struct {
+	AddNeuron   float32
+	ChangeOp    float32
+	SetSeed     float32
+	UnsetSeed   float32
+	FlipSynapse float32
+}
+
 type PlaygroundConfig struct {
 	// Initialization
 	NumInputs  int
 	NumOutputs int
 
 	// Running the playground
-	NumSpecies  int
 	NumVariants int
 	Generations int
 
-	// Evolution
-	NumParents int
-
 	// Nested configs
+	Econf EvolutionConfig
 	Gconf GenerationConfig
+	Mconf MutationConfig
 }
 
-// Playground handles the speciation and evolution of DNA.
+// Playground handles the organization and evolution of DNA.
 type Playground struct {
 	config PlaygroundConfig
 	codes  map[IDType]*DNA
@@ -225,7 +238,8 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 }
 
 func (p *Playground) mutateDNA(dna *DNA) {
-	for i := 0; i < 3; i++ {
+	// Make this happen on a synapse
+	if p.mutationOccurs(p.config.Mconf.AddNeuron) {
 		dna.AddSnippet(INTER, p.randomOp())
 	}
 
@@ -234,6 +248,8 @@ func (p *Playground) mutateDNA(dna *DNA) {
 		if p.rnd.Float32() < 0.10 {
 			snip.op = p.randomOp()
 		}
+
+		// Consider just making seeds 0 or MaxSignal?
 
 		if p.rnd.Float32() < 0.05 {
 			if _, exists := dna.Seeds[snipID]; exists {
@@ -261,6 +277,10 @@ func (p *Playground) mutateDNA(dna *DNA) {
 			}
 		}
 	}
+}
+
+func (p *Playground) mutationOccurs(chance float32) bool {
+	return p.rnd.Float32() <= chance
 }
 
 func (p *Playground) randomOp() OperatorType {
