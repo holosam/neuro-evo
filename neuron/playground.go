@@ -2,24 +2,30 @@ package neuron
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"sort"
 	"time"
 )
 
 type EvolutionConfig struct {
-	// Number of parents to combine for offspring.
+	// Number of parents to crossover for each offspring.
 	Parents int
 	// Percent of species that die off each generation.
 	BottomTierPercent float32
+	// When parents crossover, the fitter parent have their genes preferred.
+	CrossoverPriority float32
 }
 
 type MutationConfig struct {
-	AddNeuron   float32
-	ChangeOp    float32
-	SetSeed     float32
-	UnsetSeed   float32
-	FlipSynapse float32
+	NeuronExpansion  float32
+	SynapseExpansion float32
+
+	AddNeuron  float32
+	AddSynapse float32
+	ChangeOp   float32
+	SetSeed    float32
+	UnsetSeed  float32
 }
 
 type PlaygroundConfig struct {
@@ -40,6 +46,7 @@ type PlaygroundConfig struct {
 // Playground handles the organization and evolution of DNA.
 type Playground struct {
 	config PlaygroundConfig
+	source *Conglomerate
 	codes  map[IDType]*DNA
 	rnd    *rand.Rand
 
@@ -47,28 +54,21 @@ type Playground struct {
 }
 
 func NewPlayground(config PlaygroundConfig) *Playground {
-	p := &Playground{
+	return &Playground{
 		config: config,
+		source: NewConglomerate(),
 		codes:  make(map[IDType]*DNA),
 		rnd:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
+}
 
-	for id := 0; id < p.config.NumSpecies; id++ {
-		dna := NewDNA()
-		for i := 0; i < config.NumInputs; i++ {
-			visionID := dna.AddSnippet(SENSE, OR)
-			dna.SetSeed(visionID, 0)
-		}
-		for i := 0; i < config.NumOutputs; i++ {
-			motorID := dna.AddSnippet(MOTOR, OR)
-			for j := 0; j < config.NumInputs; j++ {
-				dna.AddSynapse(dna.NeuronIDs[SENSE].GetId(j), motorID)
-			}
-		}
+func (p *Playground) InitDNA() {
+	p.source.AddVisionAndMotor(p.config.NumInputs, p.config.NumOutputs)
+	for id := 0; id < p.config.NumVariants; id++ {
+		dna := NewDNA(p.source)
+		p.mutateNeurons(dna)
 		p.codes[id] = dna
 	}
-
-	return p
 }
 
 func (p *Playground) GetWinner() *DNA {
@@ -183,6 +183,7 @@ func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DN
 	return child
 }
 
+// Switch to overlay
 func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, prevChildID IDType) {
 	// Base case: vision and seed signals don't have sources.
 	if len(signal.sources) == 0 {
@@ -237,44 +238,246 @@ func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, p
 	}
 }
 
-func (p *Playground) mutateDNA(dna *DNA) {
-	// Make this happen on a synapse
-	if p.mutationOccurs(p.config.Mconf.AddNeuron) {
-		dna.AddSnippet(INTER, p.randomOp())
+func (p *Playground) dnaSimilarity(dnaIDs []IDType) int {
+	return 0
+}
+
+// Overlay DNA on the conglomerate to line up genes.
+func (p *Playground) createOffspring(dnaIDs []IDType) *DNA {
+	child := NewDNA(p.source)
+
+	// Compute the percent chance to add for each parent.
+	// The fittest parent (index 0) has the highest chance of passing on genes,
+	// and so on.
+	geneChance := make([]float32, p.config.Econf.Parents)
+	// Base chance is the GCF of the parents and the priority chance.
+	// For example, if there are 3 parents and the fitter parent is preferred
+	// by 33%, then the base chance is 0.11, and the geneChance will end up as
+	// [0.44, 0.33, 0.22]
+	baseChance := 1.0 / (float32(p.config.Econf.Parents) * (1.0 / p.config.Econf.CrossoverPriority))
+
+	// This math is wrong, the p.config.Econf.Parents+1 below is only right for 3
+
+	// For example, if there are 4 parents and the fitter parent is preferred
+	// by 20%, then the base chance is 1 / (4 * 5) 0.05,
+	// and the geneChance will end up as [0.25, 0.20, 0.15, 0.10]
+
+	totalGeneChance := float32(0.0)
+	for i := 0; i < p.config.Econf.Parents; i++ {
+		// geneChance[0] = 0.11 * (4-0) = 0.44
+		// geneChance[1] = 0.11 * (4-1) = 0.33
+		geneChance[i] = baseChance * float32(p.config.Econf.Parents+1-i)
+		totalGeneChance += geneChance[i]
 	}
 
-	for snipID, snip := range dna.Snippets {
-		// Chance of changing the operation.
-		if p.rnd.Float32() < 0.10 {
-			snip.op = p.randomOp()
+	// Find out a way to ensure this with the code
+	if totalGeneChance < 1.0 {
+		log.Fatalf("total gene chance = %v", totalGeneChance)
+	}
+
+	// Track the percentage chance that this synapse gets passed on.
+	synGeneChance := make(map[IDType]float32, p.source.Synapses.nextID)
+	for dnaIndex, dnaID := range dnaIDs {
+		for synID := range p.codes[dnaID].Synpases.idMap {
+			synGeneChance[synID] = synGeneChance[synID] + geneChance[dnaIndex]
+		}
+	}
+
+	// Pick up here
+	// Trying to figure out how to do the crossover (yellow notepads)
+
+	for synID, chance := range synGeneChance {
+		if !p.mutationOccurs(chance) {
+			continue
+		}
+
+		syn := p.source.Synapses.idMap[synID]
+		child.AddSynapse(synID)
+		if _, hasSrc := child.Neurons[syn.src]; !hasSrc {
+
+		}
+	}
+
+	return child
+}
+
+func (p *Playground) shiftConglomerate() {
+	// Increase the number of neurons by the expansion percentage.
+	neuronsToAdd := percentageOfWithMin1(p.source.Synapses.nextID, p.config.Mconf.NeuronExpansion)
+	for i := 0; i < neuronsToAdd; i++ {
+		synID := p.rnd.Intn(p.source.Synapses.nextID)
+		// Okay to add a neuron on the same synapse more than once.
+		p.source.AddInterNeuron(synID)
+	}
+
+	// Increase the number of synapses by the expansion percentage.
+	newSynapses := percentageOfWithMin1(p.source.NeuronIDs[INTER].Length(), p.config.Mconf.SynapseExpansion)
+	synCandidates := make(map[IDType]IDSet, 0)
+	for i := 0; i < p.source.NeuronIDs[INTER].Length(); i++ {
+		interID := p.source.NeuronIDs[INTER].GetId(p.rnd.Intn(p.source.NeuronIDs[INTER].Length()))
+
+		// Repurpose newSynapses to also represent an approximate clump size.
+		// Find nearby neurons that are newSynapses+1 away from this one.
+		nearbyIDs := p.nearbyNeurons(interID, interID, newSynapses+1)
+		for nearbyID := range nearbyIDs {
+			nType := p.source.GetNeuronType(nearbyID)
+			switch nType {
+			case SENSE:
+				p.addSynIfNotExists(nearbyID, interID, synCandidates)
+			case INTER:
+				p.addSynIfNotExists(nearbyID, interID, synCandidates)
+				p.addSynIfNotExists(interID, nearbyID, synCandidates)
+			case MOTOR:
+				p.addSynIfNotExists(interID, nearbyID, synCandidates)
+			}
+		}
+	}
+
+	synCandidateList := make([]Synapse, 0)
+	for src, dsts := range synCandidates {
+		for dst := range dsts {
+			synCandidateList = append(synCandidateList, Synapse{src: src, dst: dst})
+		}
+	}
+
+	for i := 0; i < newSynapses; i++ {
+		if len(synCandidateList) == 0 {
+			break
+		}
+
+		rndIndex := p.rnd.Intn(len(synCandidateList))
+		syn := synCandidateList[rndIndex]
+		p.source.Synapses.AddNewSynapse(syn.src, syn.dst)
+
+		// Remove the synapse from the list so it isn't chosen again.
+		synCandidateList[rndIndex] = synCandidateList[len(synCandidateList)-1]
+		synCandidateList = synCandidateList[:len(synCandidateList)-1]
+	}
+}
+
+func (p *Playground) nearbyNeurons(startID, src IDType, hops int) IDSet {
+	if hops == 1 {
+
+		// Currently not working as intended
+		// This doesn't yet contain upstream syns
+		// Or, could change usage above to loop through all neurons, not just INTER
+
+		return p.source.Synapses.dstMap[src]
+	}
+
+	nearby := make(IDSet)
+	for dst := range p.source.Synapses.dstMap[src] {
+		// Avoid going down the same pathways multiple times.
+		if dst == startID {
+			continue
+		}
+		for synID := range p.nearbyNeurons(startID, dst, hops-1) {
+			if synID == startID {
+				continue
+			}
+			nearby[synID] = member
+		}
+	}
+
+	return nearby
+}
+
+func (p *Playground) addSynIfNotExists(src, dst IDType, synCandidates map[IDType]IDSet) {
+	if dsts, ok := p.source.Synapses.dstMap[src]; ok {
+		if _, ok = dsts[dst]; ok {
+			return
+		}
+	}
+
+	if _, ok := synCandidates[src]; !ok {
+		synCandidates[src] = make(IDSet)
+	}
+	synCandidates[src][dst] = member
+}
+
+// Take a new offspring and (maybe) give it some new structure from the source.
+func (p *Playground) mutateDNAStructure(dna *DNA) {
+	// The only mutations that can occur on the conglomerate involve at least one
+	// INTER neuron, so all neuron and synapse candidates are based on those.
+	if p.mutationOccurs(p.config.Mconf.AddNeuron) {
+		neuronCandidates := make([]IDType, 0)
+		firstSyn := make([]Synapse, 0)
+		secondSyn := make([]Synapse, 0)
+		removeSyn := make([]Synapse, 0)
+
+		// Find every neuron in the conglomerate that's between two neurons that
+		// the DNA has.
+		for src := range p.source.Synapses.dstMap {
+			for mid := range p.source.Synapses.dstMap[src] {
+				for dst := range p.source.Synapses.dstMap[mid] {
+					_, hasSrc := dna.Neurons[src]
+					_, hasMid := dna.Neurons[mid]
+					_, hasDst := dna.Neurons[dst]
+					if hasSrc && !hasMid && hasDst {
+						neuronCandidates = append(neuronCandidates, mid)
+						index := len(neuronCandidates) - 1
+						firstSyn[index] = Synapse{src: src, dst: mid}
+						secondSyn[index] = Synapse{src: mid, dst: dst}
+						removeSyn[index] = Synapse{src: src, dst: dst}
+					}
+				}
+			}
+		}
+
+		if len(neuronCandidates) > 0 {
+			rndIndex := p.rnd.Intn(len(neuronCandidates))
+			neuronID := neuronCandidates[rndIndex]
+			dna.AddNeuron(neuronID, p.randomOp())
+
+			firstAdd := firstSyn[rndIndex]
+			firstID := p.source.Synapses.FindID(firstAdd.src, firstAdd.dst)
+			dna.AddSynapse(firstID)
+
+			secondAdd := secondSyn[rndIndex]
+			secondID := p.source.Synapses.FindID(secondAdd.src, secondAdd.dst)
+			dna.AddSynapse(secondID)
+
+			remove := removeSyn[rndIndex]
+			removeID := p.source.Synapses.FindID(remove.src, remove.dst)
+			dna.RemoveSynapse(removeID)
+		}
+	}
+
+	if p.mutationOccurs(p.config.Mconf.AddSynapse) {
+		synCandidateList := make([]IDType, 0)
+		for synID, syn := range p.source.Synapses.idMap {
+			// Already has this synapse, so skip it.
+			if _, hasSyn := dna.Synpases.idMap[synID]; hasSyn {
+				continue
+			}
+
+			_, hasSrc := dna.Neurons[syn.src]
+			_, hasDst := dna.Neurons[syn.dst]
+			// Can add this synapse because it has both the src and destination.
+			if hasSrc && hasDst {
+				synCandidateList = append(synCandidateList, synID)
+			}
+		}
+
+		if len(synCandidateList) > 0 {
+			dna.AddSynapse(synCandidateList[p.rnd.Intn(len(synCandidateList))])
+		}
+	}
+}
+
+func (p *Playground) mutateNeurons(dna *DNA) {
+	for _, neuron := range dna.Neurons {
+		if p.mutationOccurs(p.config.Mconf.ChangeOp) {
+			neuron.op = p.randomOp()
 		}
 
 		// Consider just making seeds 0 or MaxSignal?
+		// Like I don't really see how adding 168 is going to be helpful
 
-		if p.rnd.Float32() < 0.05 {
-			if _, exists := dna.Seeds[snipID]; exists {
-				if p.rnd.Float32() < 0.50 {
-					dna.RemoveSeed(snipID)
-				} else {
-					dna.SetSeed(snipID, SignalType(p.rnd.Intn(int(MaxSignal()))))
-				}
-			} else {
-				dna.SetSeed(snipID, SignalType(p.rnd.Intn(int(MaxSignal()))))
-			}
-		}
-
-		// Chance of a bit flip to create or remove a synapse to each other neuron.
-		for possibleSynID := range dna.Snippets {
-			if p.rnd.Float32() < 0.10 {
-				if _, exists := snip.synapses[possibleSynID]; exists {
-					dna.RemoveSynapse(snipID, possibleSynID)
-				} else {
-					// Try skipping direct vision->motor.
-					// if (dna.NeuronIDs[SENSE].HasID(snipID) && dna.NeuronIDs[INTER].HasID(possibleSynID)) || (dna.NeuronIDs[INTER].HasID(snipID) && dna.NeuronIDs[MOTOR].HasID(possibleSynID)) {
-					dna.AddSynapse(snipID, possibleSynID)
-					// }
-				}
-			}
+		if p.mutationOccurs(p.config.Mconf.SetSeed) {
+			neuron.SetSeed(SignalType(p.rnd.Intn(int(MaxSignal()))))
+		} else if p.mutationOccurs(p.config.Mconf.UnsetSeed) {
+			neuron.RemoveSeed()
 		}
 	}
 }
@@ -285,4 +488,12 @@ func (p *Playground) mutationOccurs(chance float32) bool {
 
 func (p *Playground) randomOp() OperatorType {
 	return interpretOp(p.rnd.Intn(NumOps))
+}
+
+func percentageOfWithMin1(val int, percent float32) int {
+	out := val * int(100*percent) / 100
+	if out == 0 {
+		out = 1
+	}
+	return out
 }

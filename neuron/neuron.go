@@ -144,6 +144,14 @@ func (n *Neuron) RemoveSeed() {
 	n.hasSeed = false
 }
 
+func (n *Neuron) Copy() *Neuron {
+	return &Neuron{
+		op:      n.op,
+		hasSeed: n.hasSeed,
+		seed:    n.seed,
+	}
+}
+
 func (n *Neuron) Fire(inputs []SignalType) SignalType {
 	// Seed inputs are "sticky" so they come back for every trigger.
 	if n.hasSeed {

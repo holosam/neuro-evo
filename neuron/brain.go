@@ -81,17 +81,73 @@ func (x *IndexedIDs) Copy() *IndexedIDs {
 	return c
 }
 
+type SynapseTracker struct {
+	// map[synID] -> Synapse
+	idMap map[IDType]Synapse
+	// map[src] -> set[dst]
+	dstMap map[IDType]IDSet
+	nextID IDType
+}
+
+func NewSynapseTracker() *SynapseTracker {
+	return &SynapseTracker{
+		idMap:  make(map[IDType]Synapse),
+		dstMap: make(map[IDType]IDSet),
+		nextID: 0,
+	}
+}
+
+func (s *SynapseTracker) AddNewSynapse(src, dst IDType) IDType {
+	return s.TrackSynapse(s.nextID, src, dst)
+}
+
+func (s *SynapseTracker) TrackSynapse(synID, src, dst IDType) IDType {
+	syn := Synapse{
+		src: src,
+		dst: dst,
+	}
+	s.idMap[synID] = syn
+
+	if _, ok := s.dstMap[src]; !ok {
+		s.dstMap[src] = make(IDSet)
+	}
+	s.dstMap[src][dst] = member
+
+	if synID >= s.nextID {
+		s.nextID = synID + 1
+	}
+	return synID
+}
+
+func (s *SynapseTracker) RemoveSynapse(id IDType) {
+	syn := s.idMap[id]
+	delete(s.dstMap[syn.src], syn.dst)
+	if len(s.dstMap[syn.src]) == 0 {
+		delete(s.dstMap, syn.src)
+	}
+	delete(s.idMap, id)
+}
+
+func (s *SynapseTracker) FindID(src, dst IDType) IDType {
+	for synID, syn := range s.idMap {
+		if src == syn.src && dst == syn.dst {
+			return synID
+		}
+	}
+
+	log.Fatalf("Non-existent synapse src=%d,dst=%d passed to SynapseTracker.FindID", src, dst)
+	return -1
+}
+
 type Conglomerate struct {
 	NeuronIDs map[NeuronType]*IndexedIDs
-	Synapses  map[IDType]Synapse
-	nextSynID IDType
+	Synapses  *SynapseTracker
 }
 
 func NewConglomerate() *Conglomerate {
 	c := &Conglomerate{
 		NeuronIDs: make(map[NeuronType]*IndexedIDs, len(neuronTypes)),
-		Synapses:  make(map[IDType]Synapse),
-		nextSynID: 0,
+		Synapses:  NewSynapseTracker(),
 	}
 	for _, nType := range neuronTypes {
 		c.NeuronIDs[nType] = NewIndexedIDs()
@@ -108,49 +164,59 @@ func (c *Conglomerate) AddVisionAndMotor(numInputs int, numOutputs int) {
 	for ; id < numInputs+numOutputs; id++ {
 		c.NeuronIDs[MOTOR].InsertID(id)
 		for v := 0; v < numInputs; v++ {
-			c.AddSynapse(v, id)
+			c.Synapses.AddNewSynapse(v, id)
 		}
 	}
 }
 
-func (c *Conglomerate) AddInterNeuron(syn Synapse) IDType {
+func (c *Conglomerate) AddInterNeuron(synID IDType) IDType {
+	syn := c.Synapses.idMap[synID]
 	newID := c.NeuronIDs[SENSE].Length() + c.NeuronIDs[MOTOR].Length() + c.NeuronIDs[INTER].Length()
 	c.NeuronIDs[INTER].InsertID(newID)
-	c.AddSynapse(syn.src, newID)
-	c.AddSynapse(newID, syn.dst)
+	c.Synapses.AddNewSynapse(syn.src, newID)
+	c.Synapses.AddNewSynapse(newID, syn.dst)
 	return newID
 }
 
-func (c *Conglomerate) AddSynapse(src, dst IDType) IDType {
-	syn := Synapse{
-		src: src,
-		dst: dst,
+func (c *Conglomerate) GetNeuronType(id IDType) NeuronType {
+	for _, nType := range neuronTypes {
+		if c.NeuronIDs[nType].HasID(id) {
+			return nType
+		}
 	}
-	c.Synapses[c.nextSynID] = syn
-	c.nextSynID++
-	return c.nextSynID - 1
+	log.Fatalf("Non-existent neuron %d passed to GetNeuronType", id)
+	return -1
 }
 
 type DNA struct {
 	Source   *Conglomerate
 	Neurons  map[IDType]*Neuron
-	Synapses IDSet
+	Synpases *SynapseTracker
 }
 
 func NewDNA(source *Conglomerate) *DNA {
 	return &DNA{
 		Source:   source,
 		Neurons:  make(map[IDType]*Neuron),
-		Synapses: make(IDSet),
+		Synpases: NewSynapseTracker(),
 	}
 }
 
-func (d *DNA) SetNeuron(id IDType, op OperatorType) {
+func (d *DNA) AddNeuron(id IDType, op OperatorType) {
 	d.Neurons[id] = NewNeuron(op)
 }
 
+func (d *DNA) SetNeuron(id IDType, neuron *Neuron) {
+	d.Neurons[id] = neuron.Copy()
+}
+
 func (d *DNA) AddSynapse(id IDType) {
-	d.Synapses[id] = member
+	syn := d.Source.Synapses.idMap[id]
+	d.Synpases.TrackSynapse(id, syn.src, syn.dst)
+}
+
+func (d *DNA) RemoveSynapse(id IDType) {
+	d.Synpases.RemoveSynapse(id)
 }
 
 func (d *DNA) SetSeed(id IDType, seed SignalType) {
@@ -181,11 +247,8 @@ func (d *DNA) PrettyPrint() string {
 			}
 
 			sortedDstIDs := make([]IDType, 0)
-			for synID := range d.Synapses {
-				syn := d.Source.Synapses[synID]
-				if syn.src == neuronID {
-					sortedDstIDs = append(sortedDstIDs, syn.dst)
-				}
+			for dst := range d.Synpases.dstMap[neuronID] {
+				sortedDstIDs = append(sortedDstIDs, dst)
 			}
 			if len(sortedDstIDs) > 0 {
 				sort.Slice(sortedDstIDs, func(i, j int) bool {
@@ -206,26 +269,14 @@ type Brain struct {
 	// outputSignals is a map instead of slice to tell which motor neurons have
 	// received and set an output.
 	outputSignals map[IDType]SignalType
-	synapses      map[IDType]IDSet
 }
 
 func Flourish(dna *DNA) *Brain {
-	b := &Brain{
+	return &Brain{
 		dna:            dna,
 		pendingSignals: make(map[IDType][]SignalType, len(dna.Neurons)),
 		outputSignals:  make(map[IDType]SignalType, dna.Source.NeuronIDs[MOTOR].Length()),
-		synapses:       make(map[IDType]IDSet),
 	}
-
-	for synID := range dna.Synapses {
-		syn := dna.Source.Synapses[synID]
-		if _, ok := b.synapses[syn.src]; !ok {
-			b.synapses[syn.src] = make(IDSet)
-		}
-		b.synapses[syn.src][syn.dst] = member
-	}
-
-	return b
 }
 
 func (b *Brain) SeeInput(sigs []SignalType) {
@@ -286,8 +337,8 @@ func (b *Brain) StepFunction() bool {
 		}
 
 		// Queue up signal for all downstream neurons.
-		for synID := range b.synapses[neuronID] {
-			nextPending[synID] = append(nextPending[synID], output)
+		for dst := range b.dna.Synpases.dstMap[neuronID] {
+			nextPending[dst] = append(nextPending[dst], output)
 		}
 	}
 

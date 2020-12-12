@@ -64,6 +64,38 @@ func TestIndexedIDs(t *testing.T) {
 	}
 }
 
+func TestSynapseTracking(t *testing.T) {
+	s := NewSynapseTracker()
+	s.AddNewSynapse(0, 1)
+	s.TrackSynapse(5, 0, 2)
+	s.AddNewSynapse(1, 2)
+
+	s.AddNewSynapse(3, 4)
+	s.RemoveSynapse(7)
+
+	expectedIDMap := make(map[IDType]Synapse)
+	expectedIDMap[0] = Synapse{src: 0, dst: 1}
+	expectedIDMap[5] = Synapse{src: 0, dst: 2}
+	expectedIDMap[6] = Synapse{src: 1, dst: 2}
+	if got := s.idMap; !reflect.DeepEqual(expectedIDMap, got) {
+		t.Errorf("Want %v, got %v", expectedIDMap, got)
+	}
+
+	expectedDstMap := make(map[IDType]IDSet)
+	expectedDstMap[0] = make(IDSet)
+	expectedDstMap[1] = make(IDSet)
+	expectedDstMap[0][1] = member
+	expectedDstMap[0][2] = member
+	expectedDstMap[1][2] = member
+	if got := s.dstMap; !reflect.DeepEqual(expectedDstMap, got) {
+		t.Errorf("Want %v, got %v", expectedDstMap, got)
+	}
+
+	if want, got := 8, s.nextID; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+}
+
 func TestSnippetEditing(t *testing.T) {
 	c := NewConglomerate()
 	c.AddVisionAndMotor(2, 2)
@@ -86,11 +118,11 @@ func TestSnippetEditing(t *testing.T) {
 	expectedSyns[1] = Synapse{src: 1, dst: 2}
 	expectedSyns[2] = Synapse{src: 0, dst: 3}
 	expectedSyns[3] = Synapse{src: 1, dst: 3}
-	if got, want := c.Synapses, expectedSyns; !reflect.DeepEqual(got, want) {
+	if got, want := c.Synapses.idMap, expectedSyns; !reflect.DeepEqual(got, want) {
 		t.Fatalf("Expected equal synapses, got %v, want %v", got, want)
 	}
 
-	c.AddInterNeuron(c.Synapses[3])
+	c.AddInterNeuron(3)
 
 	expectedInterIDs := NewIndexedIDs()
 	expectedInterIDs.InsertID(4)
@@ -100,7 +132,9 @@ func TestSnippetEditing(t *testing.T) {
 
 	expectedSyns[4] = Synapse{src: 1, dst: 4}
 	expectedSyns[5] = Synapse{src: 4, dst: 3}
-
+	if got, want := c.Synapses.idMap, expectedSyns; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Expected equal synapses, got %v, want %v", got, want)
+	}
 }
 
 func TestDNAPrettyPrint(t *testing.T) {
@@ -114,7 +148,7 @@ func TestBrainStep(t *testing.T) {
 	c := NewConglomerate()
 	c.NeuronIDs[INTER].InsertID(0)
 	c.NeuronIDs[INTER].InsertID(1)
-	c.AddSynapse(0, 1)
+	c.Synapses.AddNewSynapse(0, 1)
 
 	d := NewDNA(c)
 	d.SetNeuron(0, OR)
