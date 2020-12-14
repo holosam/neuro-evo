@@ -84,6 +84,8 @@ func (x *IndexedIDs) Copy() *IndexedIDs {
 type SynapseTracker struct {
 	// map[synID] -> Synapse
 	idMap map[IDType]Synapse
+	// map[src] -> set[synID]
+	srcMap map[IDType]IDSet
 	// map[src] -> set[dst]
 	dstMap map[IDType]IDSet
 	nextID IDType
@@ -92,6 +94,7 @@ type SynapseTracker struct {
 func NewSynapseTracker() *SynapseTracker {
 	return &SynapseTracker{
 		idMap:  make(map[IDType]Synapse),
+		srcMap: make(map[IDType]IDSet),
 		dstMap: make(map[IDType]IDSet),
 		nextID: 0,
 	}
@@ -108,6 +111,11 @@ func (s *SynapseTracker) TrackSynapse(synID, src, dst IDType) IDType {
 	}
 	s.idMap[synID] = syn
 
+	if _, ok := s.srcMap[src]; !ok {
+		s.srcMap[src] = make(IDSet)
+	}
+	s.srcMap[src][synID] = member
+
 	if _, ok := s.dstMap[src]; !ok {
 		s.dstMap[src] = make(IDSet)
 	}
@@ -121,6 +129,10 @@ func (s *SynapseTracker) TrackSynapse(synID, src, dst IDType) IDType {
 
 func (s *SynapseTracker) RemoveSynapse(id IDType) {
 	syn := s.idMap[id]
+	delete(s.srcMap[syn.src], id)
+	if len(s.srcMap[syn.src]) == 0 {
+		delete(s.srcMap, syn.src)
+	}
 	delete(s.dstMap[syn.src], syn.dst)
 	if len(s.dstMap[syn.src]) == 0 {
 		delete(s.dstMap, syn.src)

@@ -1,6 +1,8 @@
 package neuron
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // GenerateInputsFunc returns a set of inputs, which is called when needed
 // (after each output). The actions param indicate how many outputs have
@@ -45,8 +47,8 @@ func NewGeneration(gconf GenerationConfig, codes map[IDType]*DNA) *Generation {
 	}
 }
 
-func (g *Generation) FireBrains() map[IDType]BrainScore {
-	scores := make(map[IDType]BrainScore, len(g.codes))
+func (g *Generation) FireBrains() []BrainScore {
+	scores := make([]BrainScore, len(g.codes))
 
 	for round := 0; round < g.config.Rounds; round++ {
 		// Simulate all brains in separate goroutines.

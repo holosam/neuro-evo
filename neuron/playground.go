@@ -13,8 +13,6 @@ type EvolutionConfig struct {
 	Parents int
 	// Percent of species that die off each generation.
 	BottomTierPercent float32
-	// When parents crossover, the fitter parent have their genes preferred.
-	CrossoverPriority float32
 }
 
 type MutationConfig struct {
@@ -86,219 +84,144 @@ func (p *Playground) SimulatePlayground() {
 		sort.Slice(scores, func(i, j int) bool {
 			return scores[i].score > scores[j].score
 		})
-		p.winner = p.codes[scores[0].id].DeepCopy()
-
 		fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
 			scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
 			scores[3*len(scores)/4].score, scores[len(scores)-1].score)
 
-		topTier := p.config.NumSpecies / 4
-		newCodes := make(map[IDType]*DNA, topTier)
-		for i := 0; i < topTier; i++ {
-			parentScores := make([]SpeciesScore, 3)
-			parentScores[0] = scores[p.rnd.Intn(topTier)]
-			parentScores[1] = scores[p.rnd.Intn(topTier)]
-			parentScores[2] = scores[p.rnd.Intn(topTier)+topTier]
+		p.winner = p.codes[scores[0].id] //.DeepCopy()
 
-			parents := make([]IDType, 3)
-			parents[0] = parentScores[0].id
-			parents[1] = parentScores[1].id
-			parents[2] = parentScores[2].id
+		species := p.speciation(scores)
 
-			child := p.createOffspring(parents, parentScores)
-			if len(child.Snippets) == 0 {
-				child = p.singleRandDNA()
+		newCodes := make(map[IDType]*DNA, p.config.NumVariants)
+		currentMaxID := 0
+		for speciesID, speciesScores := range species {
+			speciesCodes := p.reproduction(speciesScores)
+			for id, code := range speciesCodes {
+
+				// Add dna mutation here
+
+				// Also track species now to be used for the next generation
+
+				newCodes[currentMaxID+id] = code
 			}
-			p.mutateDNA(child)
-			newCodes[scores[p.config.NumSpecies-i-1].id] = child
-			// fmt.Printf("Breeding parent ids %v to get new child %s\n", parents, child.PrettyPrint())
+			currentMaxID = len(newCodes)
 		}
 
 		for id, code := range newCodes {
 			p.codes[id] = code
 		}
 
-		if gen%10 == 0 {
-			fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
-		}
+		fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
 	}
 }
 
-func (p *Playground) createOffspring(dnaIDs []IDType, scores []SpeciesScore) *DNA {
-	child := NewDNA()
+// Break DNA into species based on the distance between their structures.
+func (p *Playground) speciation(scores []BrainScore) map[IDType][]BrainScore {
 
-	// Seed the child DNA with starting IDs for each type of neuron, to avoid
-	// collisions when traversing different parent DNAs.
-	// Vision starts at 0.
-	child.NeuronIDs[SENSE].InsertID(0)
-	// Motor starts at len(vision) + 1.
-	numVision := p.codes[0].NeuronIDs[SENSE].Length()
-	child.NeuronIDs[MOTOR].InsertID(numVision)
-	// Inter starts at the len(vision) + max(len(inter) + 1.
-	child.NeuronIDs[INTER].InsertID(numVision + p.codes[0].NeuronIDs[MOTOR].Length())
+}
 
-	//
-	// Looked at up to here
-	//
+func (p *Playground) dnaDistance(id1, id2 IDType) int {
+	// Implement this for species.
+	return 0
+}
 
-	for parentIndex, parentID := range dnaIDs {
-		parent := p.codes[parentID]
+func (p *Playground) reproduction(scores []BrainScore) map[IDType]*DNA {
+	dieOff := int(float32(len(scores)) * p.config.Econf.BottomTierPercent)
+	scores = scores[:len(scores)-dieOff]
 
-		// Randomly choose the number of traversals to include for the child.
-		// randNumTraversals := 1 + p.rnd.Intn(1+(parent.NumPathways()/(p.config.NumParents-1)))
-		// p.config.RoundsPerGen is the same as len(scores[parentIndex].allOutputs)
-		// totalTraversals := p.config.RoundsPerGen * len(scores[parentIndex].allOutputs[0])
-		// A traversal will happen every `traversalCadence` iterations.
-		// traversalCadence := totalTraversals / randNumTraversals
+	newCodes := make(map[IDType]*DNA, len(scores))
+	for id := 0; id < len(scores); id++ {
 
-		if parent.NumPathways() == 0 { //|| totalTraversals == 0 {
-			continue
-		}
-
-		paths := 0
-		for _, outputs := range scores[parentIndex].allOutputs {
-			for _, signal := range outputs {
-				// fmt.Printf("i=%d, rpg=%d, j=%d, tc=%d\n", i, p.config.RoundsPerGen, j, traversalCadence)
-				// if ((i*p.config.RoundsPerGen)+j)%traversalCadence == 0 {
-				// fmt.Printf("Beginning traverse parent %s and child %s\n", parent.PrettyPrint(), child.PrettyPrint())
-
-				if p.rnd.Intn(p.config.NumParents) == 0 {
-					continue
-				}
-
-				p.randomTraversePathway(parent, child, &signal, -1)
-				paths++
+		scoreIndices := make(map[int]void, p.config.Econf.Parents)
+		for {
+			rndIndex := p.rnd.Intn(len(scores))
+			if _, ok := scoreIndices[rndIndex]; !ok {
+				scoreIndices[rndIndex] = member
+			}
+			if len(scoreIndices) == p.config.Econf.Parents {
+				break
 			}
 		}
-	}
 
-	// Correct for the initial seeding (above).
-	for _, nType := range neuronTypes {
-		id := child.NeuronIDs[nType].GetId(0)
-		if _, exists := child.Snippets[id]; !exists {
-			child.NeuronIDs[nType].RemoveID(id)
+		parentScores := make([]BrainScore, 0)
+		for i := 0; i < len(scores); i++ {
+			if _, ok := scoreIndices[i]; ok {
+				parentScores = append(parentScores, scores[i])
+			}
 		}
+
+		newCodes[id] = p.createOffspring(parentScores)
 	}
 
-	return child
-}
-
-// Switch to overlay
-func (p *Playground) randomTraversePathway(parent, child *DNA, signal *Signal, prevChildID IDType) {
-	// Base case: vision and seed signals don't have sources.
-	if len(signal.sources) == 0 {
-		return
-	}
-
-	// This child neuron's ID will become the index of the parent's neuron.
-	// This helps overlay parent neurons that have different ID sets.
-	nType := parent.GetNeuronType(signal.neuronID)
-	parentNeuron := parent.Snippets[signal.neuronID]
-
-	childID := child.NeuronIDs[nType].GetId(0) + parent.NeuronIDs[nType].GetIndex(signal.neuronID)
-
-	// If the child doesn't yet have this neuron, create it.
-	if snip, ok := child.Snippets[childID]; !ok {
-		child.Snippets[childID] = NewNeuron(childID, parentNeuron.op)
-		child.NeuronIDs[nType].InsertID(childID)
-		if child.NextID <= childID {
-			child.NextID = childID + 1
-		}
-	} else {
-		// If the neuron exists, the op has a chance of being overridden.
-		if p.rnd.Intn(p.config.NumParents) == 0 {
-			snip.op = parentNeuron.op
-		}
-	}
-
-	// Make a connection to the downstream neuron, maintaining the pathway.
-	// Initial calls have -1 here, but motor neurons don't get synapses anyway.
-	child.AddSynapse(childID, prevChildID)
-
-	// Pick a random source to continue traversing.
-	sourceVal := p.rnd.Intn(len(signal.sources))
-	var sourceID IDType
-	for id := range signal.sources {
-		if sourceVal == 0 {
-			sourceID = id
-			break
-		}
-		sourceVal--
-	}
-
-	// If the source is negative then it could be a vision input or a seed.
-	if sourceID < 0 {
-		// If it's a seed, add it to the child's DNA.
-		if seed, ok := parent.Seeds[signal.neuronID]; ok {
-			child.Seeds[childID] = seed
-		}
-	} else {
-		// Otherwise continue traversing up the tree.
-		p.randomTraversePathway(parent, child, signal.sources[sourceID], childID)
-	}
-}
-
-func (p *Playground) dnaSimilarity(dnaIDs []IDType) int {
-	return 0
+	return newCodes
 }
 
 // Overlay DNA on the conglomerate to line up genes.
 func (p *Playground) createOffspring(dnaIDs []IDType) *DNA {
 	child := NewDNA(p.source)
 
-	// Compute the percent chance to add for each parent.
-	// The fittest parent (index 0) has the highest chance of passing on genes,
-	// and so on.
-	geneChance := make([]float32, p.config.Econf.Parents)
-	// Base chance is the GCF of the parents and the priority chance.
-	// For example, if there are 3 parents and the fitter parent is preferred
-	// by 33%, then the base chance is 0.11, and the geneChance will end up as
-	// [0.44, 0.33, 0.22]
-	baseChance := 1.0 / (float32(p.config.Econf.Parents) * (1.0 / p.config.Econf.CrossoverPriority))
-
-	// This math is wrong, the p.config.Econf.Parents+1 below is only right for 3
-
-	// For example, if there are 4 parents and the fitter parent is preferred
-	// by 20%, then the base chance is 1 / (4 * 5) 0.05,
-	// and the geneChance will end up as [0.25, 0.20, 0.15, 0.10]
-
-	totalGeneChance := float32(0.0)
-	for i := 0; i < p.config.Econf.Parents; i++ {
-		// geneChance[0] = 0.11 * (4-0) = 0.44
-		// geneChance[1] = 0.11 * (4-1) = 0.33
-		geneChance[i] = baseChance * float32(p.config.Econf.Parents+1-i)
-		totalGeneChance += geneChance[i]
-	}
-
-	// Find out a way to ensure this with the code
-	if totalGeneChance < 1.0 {
-		log.Fatalf("total gene chance = %v", totalGeneChance)
-	}
-
-	// Track the percentage chance that this synapse gets passed on.
-	synGeneChance := make(map[IDType]float32, p.source.Synapses.nextID)
-	for dnaIndex, dnaID := range dnaIDs {
-		for synID := range p.codes[dnaID].Synpases.idMap {
-			synGeneChance[synID] = synGeneChance[synID] + geneChance[dnaIndex]
-		}
-	}
-
-	// Pick up here
-	// Trying to figure out how to do the crossover (yellow notepads)
-
-	for synID, chance := range synGeneChance {
-		if !p.mutationOccurs(chance) {
-			continue
-		}
-
-		syn := p.source.Synapses.idMap[synID]
-		child.AddSynapse(synID)
-		if _, hasSrc := child.Neurons[syn.src]; !hasSrc {
-
-		}
+	seenEdges := make(IDSet, p.source.Synapses.nextID)
+	for v := 0; v < p.source.NeuronIDs[SENSE].Length(); v++ {
+		visionID := p.source.NeuronIDs[SENSE].GetId(v)
+		p.traverseEdges(visionID, dnaIDs, child, seenEdges)
 	}
 
 	return child
+}
+
+func (p *Playground) traverseEdges(neuronID IDType, parentIDs []IDType, child *DNA, seenEdges IDSet) {
+	// Any parent that has the source neuron is a contender.
+	synContenders := make([]IDType, 0)
+	for _, parentID := range parentIDs {
+		if _, ok := p.codes[parentID].Neurons[neuronID]; !ok {
+			continue
+		}
+		synContenders = append(synContenders, parentID)
+	}
+
+	for synID := range p.source.Synapses.srcMap[neuronID] {
+		// This edge has already been evaluated in this run.
+		if _, ok := seenEdges[synID]; ok {
+			continue
+		}
+		seenEdges[synID] = member
+
+		// Compute a percentage chance for this edge to be included in the child.
+		inclusionChance := float32(0.0)
+		synGeneChance := p.geneChance(len(synContenders))
+		dstContenders := make([]IDType, 0)
+		for parentIndex, parentID := range synContenders {
+			if _, ok := p.codes[parentID].Synpases.idMap[synID]; ok {
+				inclusionChance += synGeneChance[parentIndex]
+				dstContenders = append(dstContenders, parentID)
+			}
+		}
+		if !p.mutationOccurs(inclusionChance) {
+			continue
+		}
+
+		// Add the synapse to the child.
+		syn := p.source.Synapses.idMap[synID]
+		child.Synpases.TrackSynapse(synID, syn.src, syn.dst)
+
+		// If the dst neuron hasn't been added already, pick a random parent
+		// with this synapse to pass on the neuron.
+		if _, ok := child.Neurons[syn.dst]; ok {
+			continue
+		}
+		rndVal := p.rnd.Float32()
+		var dstIndex int
+		for index, chance := range p.geneChance(len(dstContenders)) {
+			if rndVal < chance {
+				dstIndex = index
+				break
+			}
+			rndVal -= chance
+		}
+		child.SetNeuron(syn.dst, p.codes[dstContenders[dstIndex]].Neurons[syn.dst])
+
+		p.traverseEdges(syn.dst, parentIDs, child, seenEdges)
+	}
 }
 
 func (p *Playground) shiftConglomerate() {
@@ -488,6 +411,26 @@ func (p *Playground) mutationOccurs(chance float32) bool {
 
 func (p *Playground) randomOp() OperatorType {
 	return interpretOp(p.rnd.Intn(NumOps))
+}
+
+func (p *Playground) geneChance(numParents int) []float32 {
+
+	// Might be better to try inputting the actual BrainScores and returning
+	// chances based on the ratios of scores.
+
+	switch numParents {
+	case 1:
+		return []float32{1.0}
+	case 2:
+		return []float32{0.66, 0.34}
+	case 3:
+		return []float32{0.44, 0.33, 0.23}
+	case 4:
+		return []float32{0.32, 0.27, 0.23, 0.18}
+	default:
+		log.Fatalf("Unsupported parent number")
+		return []float32{}
+	}
 }
 
 func percentageOfWithMin1(val int, percent float32) int {
