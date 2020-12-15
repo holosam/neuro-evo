@@ -331,7 +331,7 @@ func (b *Brain) StepFunction() bool {
 
 		neuron := b.dna.Neurons[neuronID]
 		output := neuron.Fire(inputs)
-		fmt.Printf("firing neuron %v with inputs %v and got output: %d\n", neuron, inputs, output)
+		fmt.Printf("firing neuron %+v with inputs %v and got output: %d\n", neuron, inputs, output)
 
 		// Clear this neuron's pending signals now that it has fired.
 		// It's okay to edit the underlying map while iterating.

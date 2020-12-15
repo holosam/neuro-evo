@@ -1,8 +1,6 @@
 package neuron
 
 import (
-	"fmt"
-	"log"
 	"math/rand"
 	"sort"
 	"time"
@@ -13,6 +11,8 @@ type EvolutionConfig struct {
 	Parents int
 	// Percent of species that die off each generation.
 	BottomTierPercent float32
+
+	DistanceThreshold int
 }
 
 type MutationConfig struct {
@@ -41,22 +41,32 @@ type PlaygroundConfig struct {
 	Mconf MutationConfig
 }
 
+type Species struct {
+	rep     *DNA
+	scores  []BrainScore
+	fitness ScoreType
+}
+
+func (s *Species) Size() int {
+	return len(s.scores)
+}
+
 // Playground handles the organization and evolution of DNA.
 type Playground struct {
-	config PlaygroundConfig
-	source *Conglomerate
-	codes  map[IDType]*DNA
-	rnd    *rand.Rand
-
-	winner *DNA
+	config  PlaygroundConfig
+	source  *Conglomerate
+	codes   map[IDType]*DNA
+	species map[IDType]*Species
+	rnd     *rand.Rand
 }
 
 func NewPlayground(config PlaygroundConfig) *Playground {
 	return &Playground{
-		config: config,
-		source: NewConglomerate(),
-		codes:  make(map[IDType]*DNA),
-		rnd:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		config:  config,
+		source:  NewConglomerate(),
+		codes:   make(map[IDType]*DNA),
+		species: make(map[IDType]*Species),
+		rnd:     rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -69,72 +79,135 @@ func (p *Playground) InitDNA() {
 	}
 }
 
-func (p *Playground) GetWinner() *DNA {
-	return p.winner
-}
-
 func (p *Playground) SimulatePlayground() {
-	// Each generation gets the set of inputs, competes, reproduces, and mutates.
 	for gen := 0; gen < p.config.Generations; gen++ {
 		g := NewGeneration(p.config.Gconf, p.codes)
 
 		scores := g.FireBrains()
 
-		// Sorts high to low (higher scores are better).
-		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].score > scores[j].score
-		})
-		fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
-			scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
-			scores[3*len(scores)/4].score, scores[len(scores)-1].score)
+		// fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
+		// 	scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
+		// 	scores[3*len(scores)/4].score, scores[len(scores)-1].score)
 
-		p.winner = p.codes[scores[0].id] //.DeepCopy()
+		p.shiftConglomerate()
 
-		species := p.speciation(scores)
+		speciesOffspring := p.speciation(scores)
 
 		newCodes := make(map[IDType]*DNA, p.config.NumVariants)
 		currentMaxID := 0
-		for speciesID, speciesScores := range species {
-			speciesCodes := p.reproduction(speciesScores)
-			for id, code := range speciesCodes {
+		for speciesID, species := range p.species {
+			childCodes := p.reproduction(species, speciesOffspring[speciesID])
+			for id, child := range childCodes {
 
-				// Add dna mutation here
+				p.mutateDNAStructure(child)
+				p.mutateNeurons(child)
 
-				// Also track species now to be used for the next generation
-
-				newCodes[currentMaxID+id] = code
+				newCodes[currentMaxID+id] = child
 			}
+
 			currentMaxID = len(newCodes)
+		}
+
+		for _, species := range p.species {
+			// Include one DNA from this generation to represent the species for the
+			// next gen.
+			species.rep = p.codes[species.scores[0].id]
+			// Clear all members from the species since they are no longer needed.
+			species.scores = make([]BrainScore, 0)
 		}
 
 		for id, code := range newCodes {
 			p.codes[id] = code
 		}
-
-		fmt.Printf("Winning DNA: %s\n", p.winner.PrettyPrint())
 	}
 }
 
 // Break DNA into species based on the distance between their structures.
-func (p *Playground) speciation(scores []BrainScore) map[IDType][]BrainScore {
+func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
+	// Figure out which species this genome belongs in.
+	for _, score := range scores {
+		foundSpecies := false
+		nextSpeciesID := 0
+		for speciesID, species := range p.species {
+			if nextSpeciesID <= speciesID {
+				nextSpeciesID = speciesID + 1
+			}
 
+			if p.dnaDistance(p.codes[score.id], species.rep) > p.config.Econf.DistanceThreshold {
+				continue
+			}
+			foundSpecies = true
+			species.scores = append(species.scores, score)
+		}
+		if !foundSpecies {
+			p.species[nextSpeciesID] = &Species{
+				rep:    p.codes[score.id],
+				scores: []BrainScore{score},
+			}
+		}
+	}
+
+	// Adjust the fitness score for each member.
+	totalGenerationFitness := ScoreType(0)
+	for speciesID, species := range p.species {
+		if species.Size() == 0 {
+			delete(p.species, speciesID)
+			continue
+		}
+		for index, score := range species.scores {
+			adjustedFitness := score.score / ScoreType(species.Size())
+			species.scores[index].score = adjustedFitness
+			species.fitness += adjustedFitness
+		}
+		totalGenerationFitness += species.fitness
+	}
+
+	// Use the total fitness of the species to determine how many offspring
+	// in the next generation are from each species.
+	offspringPerSpecies := make(map[IDType]int, len(p.species))
+	for speciesID, species := range p.species {
+		offspringPerSpecies[speciesID] = percentageOfWithMin1(p.config.NumVariants,
+			float32(species.fitness)/float32(totalGenerationFitness))
+	}
+	return offspringPerSpecies
 }
 
-func (p *Playground) dnaDistance(id1, id2 IDType) int {
-	// Implement this for species.
-	return 0
+func (p *Playground) dnaDistance(a, b *DNA) int {
+	matchingEdges := 0
+	for synID := range a.Synpases.idMap {
+		if _, ok := b.Synpases.idMap[synID]; ok {
+			matchingEdges++
+		}
+	}
+
+	nonMatchingEdges := len(a.Synpases.idMap) + len(b.Synpases.idMap) - (2 * matchingEdges)
+
+	// Add a factor that includes the neuron ops and seeds
+
+	return nonMatchingEdges
 }
 
-func (p *Playground) reproduction(scores []BrainScore) map[IDType]*DNA {
-	dieOff := int(float32(len(scores)) * p.config.Econf.BottomTierPercent)
-	scores = scores[:len(scores)-dieOff]
+func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType]*DNA {
+	// Sorts high to low (higher scores are better).
+	sort.Slice(species.scores, func(i, j int) bool {
+		return species.scores[i].score > species.scores[j].score
+	})
 
-	newCodes := make(map[IDType]*DNA, len(scores))
-	for id := 0; id < len(scores); id++ {
+	dieOff := percentageOfWithMin1(species.Size(), p.config.Econf.BottomTierPercent)
+	species.scores = species.scores[:species.Size()-dieOff]
 
-		scoreIndices := make(map[int]void, p.config.Econf.Parents)
+	newCodes := make(map[IDType]*DNA, numOffspring)
+
+	// Can't reproduce without enough parents.
+	if species.Size() < p.config.Econf.Parents {
+		return newCodes
+	}
+
+	for id := 0; id < numOffspring; id++ {
+		scoreIndices := make(IDSet, p.config.Econf.Parents)
 		for {
-			rndIndex := p.rnd.Intn(len(scores))
+			// Get N unique random numbers.
+			rndIndex := p.rnd.Intn(species.Size())
 			if _, ok := scoreIndices[rndIndex]; !ok {
 				scoreIndices[rndIndex] = member
 			}
@@ -144,9 +217,9 @@ func (p *Playground) reproduction(scores []BrainScore) map[IDType]*DNA {
 		}
 
 		parentScores := make([]BrainScore, 0)
-		for i := 0; i < len(scores); i++ {
+		for i := 0; i < species.Size(); i++ {
 			if _, ok := scoreIndices[i]; ok {
-				parentScores = append(parentScores, scores[i])
+				parentScores = append(parentScores, species.scores[i])
 			}
 		}
 
@@ -157,26 +230,26 @@ func (p *Playground) reproduction(scores []BrainScore) map[IDType]*DNA {
 }
 
 // Overlay DNA on the conglomerate to line up genes.
-func (p *Playground) createOffspring(dnaIDs []IDType) *DNA {
+func (p *Playground) createOffspring(parentScores []BrainScore) *DNA {
 	child := NewDNA(p.source)
 
 	seenEdges := make(IDSet, p.source.Synapses.nextID)
 	for v := 0; v < p.source.NeuronIDs[SENSE].Length(); v++ {
 		visionID := p.source.NeuronIDs[SENSE].GetId(v)
-		p.traverseEdges(visionID, dnaIDs, child, seenEdges)
+		p.traverseEdges(visionID, parentScores, child, seenEdges)
 	}
 
 	return child
 }
 
-func (p *Playground) traverseEdges(neuronID IDType, parentIDs []IDType, child *DNA, seenEdges IDSet) {
+func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, child *DNA, seenEdges IDSet) {
 	// Any parent that has the source neuron is a contender.
-	synContenders := make([]IDType, 0)
-	for _, parentID := range parentIDs {
-		if _, ok := p.codes[parentID].Neurons[neuronID]; !ok {
+	synContenders := make([]BrainScore, 0)
+	for _, parentScore := range parentScores {
+		if _, ok := p.codes[parentScore.id].Neurons[neuronID]; !ok {
 			continue
 		}
-		synContenders = append(synContenders, parentID)
+		synContenders = append(synContenders, parentScore)
 	}
 
 	for synID := range p.source.Synapses.srcMap[neuronID] {
@@ -188,12 +261,12 @@ func (p *Playground) traverseEdges(neuronID IDType, parentIDs []IDType, child *D
 
 		// Compute a percentage chance for this edge to be included in the child.
 		inclusionChance := float32(0.0)
-		synGeneChance := p.geneChance(len(synContenders))
-		dstContenders := make([]IDType, 0)
-		for parentIndex, parentID := range synContenders {
-			if _, ok := p.codes[parentID].Synpases.idMap[synID]; ok {
+		synGeneChance := p.geneChance(synContenders)
+		dstContenders := make([]BrainScore, 0)
+		for parentIndex, parentScore := range synContenders {
+			if _, ok := p.codes[parentScore.id].Synpases.idMap[synID]; ok {
 				inclusionChance += synGeneChance[parentIndex]
-				dstContenders = append(dstContenders, parentID)
+				dstContenders = append(dstContenders, parentScore)
 			}
 		}
 		if !p.mutationOccurs(inclusionChance) {
@@ -211,16 +284,16 @@ func (p *Playground) traverseEdges(neuronID IDType, parentIDs []IDType, child *D
 		}
 		rndVal := p.rnd.Float32()
 		var dstIndex int
-		for index, chance := range p.geneChance(len(dstContenders)) {
+		for index, chance := range p.geneChance(dstContenders) {
 			if rndVal < chance {
 				dstIndex = index
 				break
 			}
 			rndVal -= chance
 		}
-		child.SetNeuron(syn.dst, p.codes[dstContenders[dstIndex]].Neurons[syn.dst])
+		child.SetNeuron(syn.dst, p.codes[dstContenders[dstIndex].id].Neurons[syn.dst])
 
-		p.traverseEdges(syn.dst, parentIDs, child, seenEdges)
+		p.traverseEdges(syn.dst, parentScores, child, seenEdges)
 	}
 }
 
@@ -413,24 +486,18 @@ func (p *Playground) randomOp() OperatorType {
 	return interpretOp(p.rnd.Intn(NumOps))
 }
 
-func (p *Playground) geneChance(numParents int) []float32 {
-
-	// Might be better to try inputting the actual BrainScores and returning
-	// chances based on the ratios of scores.
-
-	switch numParents {
-	case 1:
-		return []float32{1.0}
-	case 2:
-		return []float32{0.66, 0.34}
-	case 3:
-		return []float32{0.44, 0.33, 0.23}
-	case 4:
-		return []float32{0.32, 0.27, 0.23, 0.18}
-	default:
-		log.Fatalf("Unsupported parent number")
-		return []float32{}
+func (p *Playground) geneChance(scores []BrainScore) []float32 {
+	scoreTotal := ScoreType(0)
+	for _, score := range scores {
+		scoreTotal += score.score
 	}
+
+	geneChance := make([]float32, len(scores))
+	for i := 0; i < len(scores); i++ {
+		// The max uint64 (ScoreType) is less than the max float32.
+		geneChance[i] = float32(scores[i].score) / float32(scoreTotal)
+	}
+	return geneChance
 }
 
 func percentageOfWithMin1(val int, percent float32) int {

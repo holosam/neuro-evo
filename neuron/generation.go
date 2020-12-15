@@ -60,7 +60,7 @@ func (g *Generation) FireBrains() []BrainScore {
 		// Wait for all the results to come in before ending the round.
 		for i := 0; i < len(g.codes); i++ {
 			result := <-scoreChan
-			scores[result.id] = result
+			scores[i] = result
 		}
 	}
 
