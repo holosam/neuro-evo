@@ -86,8 +86,6 @@ type SynapseTracker struct {
 	idMap map[IDType]Synapse
 	// map[src] -> set[synID]
 	srcMap map[IDType]IDSet
-	// map[src] -> set[dst]
-	dstMap map[IDType]IDSet
 	nextID IDType
 }
 
@@ -95,7 +93,6 @@ func NewSynapseTracker() *SynapseTracker {
 	return &SynapseTracker{
 		idMap:  make(map[IDType]Synapse),
 		srcMap: make(map[IDType]IDSet),
-		dstMap: make(map[IDType]IDSet),
 		nextID: 0,
 	}
 }
@@ -116,11 +113,6 @@ func (s *SynapseTracker) TrackSynapse(synID, src, dst IDType) IDType {
 	}
 	s.srcMap[src][synID] = member
 
-	if _, ok := s.dstMap[src]; !ok {
-		s.dstMap[src] = make(IDSet)
-	}
-	s.dstMap[src][dst] = member
-
 	if synID >= s.nextID {
 		s.nextID = synID + 1
 	}
@@ -133,22 +125,29 @@ func (s *SynapseTracker) RemoveSynapse(id IDType) {
 	if len(s.srcMap[syn.src]) == 0 {
 		delete(s.srcMap, syn.src)
 	}
-	delete(s.dstMap[syn.src], syn.dst)
-	if len(s.dstMap[syn.src]) == 0 {
-		delete(s.dstMap, syn.src)
-	}
 	delete(s.idMap, id)
 }
 
-func (s *SynapseTracker) FindID(src, dst IDType) IDType {
-	for synID, syn := range s.idMap {
-		if src == syn.src && dst == syn.dst {
-			return synID
+func (s *SynapseTracker) AllDsts(src IDType) IDSet {
+	synIDs, ok := s.srcMap[src]
+	if !ok {
+		return make(IDSet, 0)
+	}
+	dsts := make(IDSet, len(synIDs))
+	for synID := range synIDs {
+		dsts[s.idMap[synID].dst] = member
+	}
+	return dsts
+}
+
+func (s *SynapseTracker) FindID(src, dst IDType) (IDType, error) {
+	for synID := range s.srcMap[src] {
+		if s.idMap[synID].dst == dst {
+			return synID, nil
 		}
 	}
 
-	log.Fatalf("Non-existent synapse src=%d,dst=%d passed to SynapseTracker.FindID", src, dst)
-	return -1
+	return 0, fmt.Errorf("non-existent synapse src=%d,dst=%d", src, dst)
 }
 
 type Conglomerate struct {
@@ -251,7 +250,10 @@ func (d *DNA) PrettyPrint() string {
 		}
 		for index := 0; index < d.Source.NeuronIDs[nType].Length(); index++ {
 			neuronID := d.Source.NeuronIDs[nType].GetId(index)
-			neuron := d.Neurons[neuronID]
+			neuron, ok := d.Neurons[neuronID]
+			if !ok {
+				continue
+			}
 
 			sb.WriteString(fmt.Sprintf("%d (%s%d) = op%d", neuronID, nTypeChar, index, neuron.op))
 			if neuron.hasSeed {
@@ -259,7 +261,7 @@ func (d *DNA) PrettyPrint() string {
 			}
 
 			sortedDstIDs := make([]IDType, 0)
-			for dst := range d.Synpases.dstMap[neuronID] {
+			for dst := range d.Synpases.AllDsts(neuronID) {
 				sortedDstIDs = append(sortedDstIDs, dst)
 			}
 			if len(sortedDstIDs) > 0 {
@@ -349,7 +351,7 @@ func (b *Brain) StepFunction() bool {
 		}
 
 		// Queue up signal for all downstream neurons.
-		for dst := range b.dna.Synpases.dstMap[neuronID] {
+		for dst := range b.dna.Synpases.AllDsts(neuronID) {
 			nextPending[dst] = append(nextPending[dst], output)
 		}
 	}

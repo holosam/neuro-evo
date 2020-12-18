@@ -11,12 +11,12 @@ func SimpleTestDNA() *DNA {
 	c.AddVisionAndMotor(2, 1)
 
 	d := NewDNA(c)
-	d.SetNeuron(0, OR)
+	d.AddNeuron(0, OR)
 	d.SetSeed(0, 0)
-	d.SetNeuron(1, OR)
+	d.AddNeuron(1, OR)
 	d.SetSeed(1, 0)
 
-	d.SetNeuron(2, OR)
+	d.AddNeuron(2, OR)
 	d.AddSynapse(0)
 	d.AddSynapse(1)
 	return d
@@ -81,18 +81,39 @@ func TestSynapseTracking(t *testing.T) {
 		t.Errorf("Want %v, got %v", expectedIDMap, got)
 	}
 
-	expectedDstMap := make(map[IDType]IDSet)
-	expectedDstMap[0] = make(IDSet)
-	expectedDstMap[1] = make(IDSet)
-	expectedDstMap[0][1] = member
-	expectedDstMap[0][2] = member
-	expectedDstMap[1][2] = member
-	if got := s.dstMap; !reflect.DeepEqual(expectedDstMap, got) {
-		t.Errorf("Want %v, got %v", expectedDstMap, got)
+	expectedSrcMap := make(map[IDType]IDSet)
+	expectedSrcMap[0] = make(IDSet)
+	expectedSrcMap[1] = make(IDSet)
+	expectedSrcMap[0][0] = member
+	expectedSrcMap[0][5] = member
+	expectedSrcMap[1][6] = member
+	if got := s.srcMap; !reflect.DeepEqual(expectedSrcMap, got) {
+		t.Errorf("Want %v, got %v", expectedSrcMap, got)
 	}
 
 	if want, got := 8, s.nextID; want != got {
 		t.Errorf("Want %v, got %v", want, got)
+	}
+
+	expectedDsts := make(IDSet)
+	expectedDsts[1] = member
+	expectedDsts[2] = member
+	if got := s.AllDsts(0); !reflect.DeepEqual(expectedDsts, got) {
+		t.Errorf("Want %v, got %v", expectedDsts, got)
+	}
+
+	if got, want := len(s.AllDsts(99)), 0; want != got {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+
+	foundID, err := s.FindID(1, 2)
+	if want := 6; err != nil || foundID != want {
+		t.Errorf("Want %v, got %v", want, foundID)
+	}
+
+	_, err = s.FindID(9, 10)
+	if err == nil {
+		t.Errorf("Want error, got none")
 	}
 }
 
@@ -151,9 +172,9 @@ func TestBrainStep(t *testing.T) {
 	c.Synapses.AddNewSynapse(0, 1)
 
 	d := NewDNA(c)
-	d.SetNeuron(0, OR)
+	d.AddNeuron(0, OR)
 	d.SetSeed(0, 1)
-	d.SetNeuron(1, FALSIFY)
+	d.AddNeuron(1, FALSIFY)
 	d.AddSynapse(0)
 	b := Flourish(d)
 

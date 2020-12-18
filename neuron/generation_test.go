@@ -48,7 +48,7 @@ func TestRunGeneration(t *testing.T) {
 	g := NewGeneration(testGConf(), codes)
 	results := g.FireBrains()
 
-	want := make(map[IDType]BrainScore)
+	want := make([]BrainScore, 2)
 	want[0] = BrainScore{
 		id:    0,
 		score: 6,
