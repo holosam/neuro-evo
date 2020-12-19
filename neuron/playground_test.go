@@ -13,7 +13,7 @@ func TestInitDNA(t *testing.T) {
 		NumVariants: 5,
 
 		Mconf: MutationConfig{
-			ChangeOp:  1.0,
+			ChangeOp:  0.5,
 			SetSeed:   0.5,
 			UnsetSeed: 0.5,
 		},
@@ -82,68 +82,29 @@ func TestSimulatePlayground(t *testing.T) {
 }
 */
 
-// func TestAddSynIfNotExists(t *testing.T) {
-// 	p := NewPlayground(PlaygroundConfig{
-// 		NumInputs:  2,
-// 		NumOutputs: 1,
-// 	})
-// 	p.InitDNA()
-// 	p.source.AddInterNeuron(0)
-// 	p.source.AddInterNeuron(1)
-// 	//    0    1
-// 	// (2)|    |(4)
-// 	//    3    4
-// 	//   (3)\/(5)
-// 	//0-(0)- 2 -(1)-1
-
-// 	candidates := make(map[IDType]IDSet, 0)
-// 	expected := make(map[IDType]IDSet, 0)
-
-// 	// DstType is SENSE, do not add.
-// 	p.addSynIfNotExists(0, 1, SENSE, SENSE, candidates)
-// 	if !reflect.DeepEqual(candidates, expected) {
-// 		t.Errorf("Got %v, want %v", candidates, expected)
-// 	}
-
-// 	// Syn exists, do not add.
-// 	p.addSynIfNotExists(0, 3, SENSE, INTER, candidates)
-// 	if !reflect.DeepEqual(candidates, expected) {
-// 		t.Errorf("Got %v, want %v", candidates, expected)
-// 	}
-
-// 	// SrcType is MOTOR, do not add.
-// 	p.addSynIfNotExists(2, 4, MOTOR, INTER, candidates)
-// 	if !reflect.DeepEqual(candidates, expected) {
-// 		t.Errorf("Got %v, want %v", candidates, expected)
-// 	}
-
-// 	// Syn doesn't exist, add it.
-// 	p.addSynIfNotExists(0, 4, SENSE, INTER, candidates)
-// 	expected[0] = make(IDSet, 1)
-// 	expected[0][4] = member
-// 	if !reflect.DeepEqual(candidates, expected) {
-// 		t.Errorf("Got %v, want %v", candidates, expected)
-// 	}
-
-// 	// Syn doesn't exist, add it.
-// 	p.addSynIfNotExists(4, 3, INTER, INTER, candidates)
-// 	expected[4] = make(IDSet, 1)
-// 	expected[4][3] = member
-// 	if !reflect.DeepEqual(candidates, expected) {
-// 		t.Errorf("Got %v, want %v", candidates, expected)
-// 	}
-
-// 	// Already added, nothing should change.
-// 	p.addSynIfNotExists(4, 3, INTER, INTER, candidates)
-// 	if !reflect.DeepEqual(candidates, expected) {
-// 		t.Errorf("Got %v, want %v", candidates, expected)
-// 	}
-// }
-
 func CreateTestConglomerate() *Playground {
 	p := NewPlayground(PlaygroundConfig{
-		NumInputs:  2,
-		NumOutputs: 1,
+		NumInputs:   2,
+		NumOutputs:  1,
+		NumVariants: 10,
+
+		Mconf: MutationConfig{
+			// Guaranteed at least 1 addition regardless of these values.
+			NeuronExpansion:  0.01,
+			SynapseExpansion: 0.01,
+
+			AddNeuron:  1.0,
+			AddSynapse: 1.0,
+
+			ChangeOp:  0.5,
+			SetSeed:   0.5,
+			UnsetSeed: 0.5,
+		},
+
+		Econf: EvolutionConfig{
+			Parents:           2,
+			BottomTierPercent: 0.25,
+		},
 	})
 	p.InitDNA() // Makes vision N0, N1, and motor N2 with Syn0 and Syn1.
 
@@ -168,7 +129,68 @@ func CreateTestConglomerate() *Playground {
 		4->2 Syn5
 	*/
 
+	for i := 0; i < p.config.NumVariants; i++ {
+		dna := p.codes[i]
+		p.mutateDNAStructure(dna)
+		p.mutateDNAStructure(dna)
+		p.mutateNeurons(dna)
+	}
+
 	return p
+}
+
+func TestReproduction(t *testing.T) {
+	p := CreateTestConglomerate()
+	species := &Species{
+		scores: []BrainScore{
+			{id: 0, score: 200},
+			{id: 1, score: 400},
+			{id: 2, score: 300},
+			{id: 3, score: 100},
+		},
+	}
+
+	newCodes := p.reproduction(species, 2)
+	if got, want := len(newCodes), 2; want != got {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+	// The variant with score 100 dies off.
+	if got, want := species.Size(), 3; want != got {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+}
+
+func TestCreateOffspring(t *testing.T) {
+	p := CreateTestConglomerate()
+
+	fmt.Printf("dna 0: %s\n", p.codes[0].PrettyPrint())
+	fmt.Printf("dna 1: %s\n", p.codes[1].PrettyPrint())
+
+	parentScores := []BrainScore{{id: 0, score: 60}, {id: 1, score: 40}}
+	child := p.createOffspring(parentScores)
+	fmt.Printf("child: %s\n", child.PrettyPrint())
+
+	if _, ok := child.Neurons[2]; !ok {
+		t.Errorf("Child didn't get a motor neuron")
+	}
+}
+
+func TestShiftConglomerate(t *testing.T) {
+	p := CreateTestConglomerate()
+
+	numInterBefore := p.source.NeuronIDs[INTER].Length()
+	nextIDBefore := p.source.Synapses.nextID
+	p.shiftConglomerate()
+
+	if got, want := p.source.NeuronIDs[INTER].Length(), numInterBefore+1; got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	// The nextID will be +2 because of the new inter neuron, then +1 because of
+	// the new synapse being added.
+	if got, want := p.source.Synapses.nextID, nextIDBefore+1+2; got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
 }
 
 func testAddToIDSet(idset IDSet, ids ...IDType) IDSet {
@@ -197,8 +219,6 @@ func TestNearbyNeurons(t *testing.T) {
 		t.Errorf("Got %v, want %v", got, expected)
 	}
 
-	fmt.Printf("-------- next test ----------\n")
-
 	// Because everything is 1 hop away from N2, then at 2 hops everything is
 	// "nearby" everything else.
 	expected[0] = testAddToIDSet(expected[0], 1, 5)
@@ -211,26 +231,6 @@ func TestNearbyNeurons(t *testing.T) {
 		t.Errorf("Got %v, want %v", got, expected)
 	}
 }
-
-// func TestDownstreamNeurons(t *testing.T) {
-// 	p := CreateTestConglomerate()
-
-// 	expected := make(IDSet)
-// 	expected[2] = member // Syn0 connects N0 to N2
-// 	expected[3] = member // Syn2 connects N0 to N3
-// 	expected[4] = member // Syn8 connects N0 to N4
-
-// 	// One hop away.
-// 	if got := p.downstreamNeurons(0, 1); !reflect.DeepEqual(got, expected) {
-// 		t.Errorf("Got %v, want %v", got, expected)
-// 	}
-
-// 	// Two hops away.
-// 	expected[5] = member // Syn7 connects N4 to N5
-// 	if got := p.downstreamNeurons(0, 2); !reflect.DeepEqual(got, expected) {
-// 		t.Errorf("Got %v, want %v", got, expected)
-// 	}
-// }
 
 func TestMutateDNAStructure(t *testing.T) {
 	p := NewPlayground(PlaygroundConfig{
@@ -291,13 +291,7 @@ func TestMutateDNAStructure(t *testing.T) {
 
 func TestMutateNeurons(t *testing.T) {
 	dna := SimpleTestDNA()
-	p := NewPlayground(PlaygroundConfig{
-		Mconf: MutationConfig{
-			ChangeOp:  1.0,
-			SetSeed:   0.5,
-			UnsetSeed: 0.5,
-		},
-	})
+	p := CreateTestConglomerate()
 
 	p.mutateNeurons(dna)
 	if got, want := dna.PrettyPrint(), SimpleTestDNA().PrettyPrint(); got == want {
@@ -319,6 +313,14 @@ func TestHelperFns(t *testing.T) {
 	expectedChances := []float32{0.6, 0.3, 0.1}
 	if got := geneChance(inputScores); !reflect.DeepEqual(got, expectedChances) {
 		t.Errorf("Got %v, want %v", got, expectedChances)
+	}
+
+	outputIndices := make([]int, len(inputScores))
+	for i := 0; i < 200; i++ {
+		outputIndices[p.randomParentGene(inputScores)]++
+	}
+	if outputIndices[0] < outputIndices[1] || outputIndices[1] < outputIndices[2] {
+		t.Errorf("Got %v, expected ratio more like %v", outputIndices, expectedChances)
 	}
 
 	if got, want := percentageOfWithMin1(100, 0.32), 32; got != want {

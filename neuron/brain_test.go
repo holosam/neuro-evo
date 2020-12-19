@@ -66,11 +66,19 @@ func TestIndexedIDs(t *testing.T) {
 
 func TestSynapseTracking(t *testing.T) {
 	s := NewSynapseTracker()
-	s.AddNewSynapse(0, 1)
-	s.TrackSynapse(5, 0, 2)
-	s.AddNewSynapse(1, 2)
+	if got, want := s.AddNewSynapse(0, 1), 0; got != want {
+		t.Fatalf("Want %v, got %v", want, got)
+	}
+	if got, want := s.TrackSynapse(5, 0, 2), 5; got != want {
+		t.Fatalf("Want %v, got %v", want, got)
+	}
+	if got, want := s.AddNewSynapse(1, 2), 6; got != want {
+		t.Fatalf("Want %v, got %v", want, got)
+	}
 
-	s.AddNewSynapse(3, 4)
+	if got, want := s.AddNewSynapse(3, 4), 7; got != want {
+		t.Fatalf("Want %v, got %v", want, got)
+	}
 	s.RemoveSynapse(7)
 
 	expectedIDMap := make(map[IDType]Synapse)

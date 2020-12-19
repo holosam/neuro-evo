@@ -147,7 +147,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 				nextSpeciesID = speciesID + 1
 			}
 
-			if p.dnaDistance(p.codes[score.id], species.rep) > p.config.Econf.DistanceThreshold {
+			if dnaDistance(p.codes[score.id], species.rep) > p.config.Econf.DistanceThreshold {
 				continue
 			}
 			foundSpecies = true
@@ -186,7 +186,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 	return offspringPerSpecies
 }
 
-func (p *Playground) dnaDistance(a, b *DNA) int {
+func dnaDistance(a, b *DNA) int {
 	matchingEdges := 0
 	for synID := range a.Synpases.idMap {
 		if _, ok := b.Synpases.idMap[synID]; ok {
@@ -198,7 +198,8 @@ func (p *Playground) dnaDistance(a, b *DNA) int {
 
 	// Add a factor that includes the neuron ops and seeds
 
-	return nonMatchingEdges
+	// and make distance threshold into a float32
+	return nonMatchingEdges / 200 // total edges?
 }
 
 func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType]*DNA {
@@ -206,6 +207,7 @@ func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType
 	sort.Slice(species.scores, func(i, j int) bool {
 		return species.scores[i].score > species.scores[j].score
 	})
+	// fmt.Printf("Sorted species: %+v\n", species)
 
 	dieOff := percentageOfWithMin1(species.Size(), p.config.Econf.BottomTierPercent)
 	species.scores = species.scores[:species.Size()-dieOff]
@@ -218,9 +220,10 @@ func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType
 	}
 
 	for id := 0; id < numOffspring; id++ {
+		// fmt.Printf("-Making offspring %d\n", id)
 		scoreIndices := make(IDSet, p.config.Econf.Parents)
 		for {
-			// Get N unique random numbers.
+			// Get #parents unique random numbers.
 			rndIndex := p.rnd.Intn(species.Size())
 			if _, ok := scoreIndices[rndIndex]; !ok {
 				scoreIndices[rndIndex] = member
@@ -230,12 +233,14 @@ func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType
 			}
 		}
 
+		// Make a list of parents in decreasing score order.
 		parentScores := make([]BrainScore, 0)
 		for i := 0; i < species.Size(); i++ {
 			if _, ok := scoreIndices[i]; ok {
 				parentScores = append(parentScores, species.scores[i])
 			}
 		}
+		// fmt.Printf("-Parents will be %v\n", parentScores)
 
 		newCodes[id] = p.createOffspring(parentScores)
 	}
@@ -250,6 +255,11 @@ func (p *Playground) createOffspring(parentScores []BrainScore) *DNA {
 	seenEdges := make(IDSet, p.source.Synapses.nextID)
 	for v := 0; v < p.source.NeuronIDs[SENSE].Length(); v++ {
 		visionID := p.source.NeuronIDs[SENSE].GetId(v)
+
+		// Add the vision neuron to the child first.
+		parentIndex := p.randomParentGene(parentScores)
+		child.SetNeuron(visionID, p.codes[parentScores[parentIndex].id].Neurons[visionID])
+
 		p.traverseEdges(visionID, parentScores, child, seenEdges)
 	}
 
@@ -257,6 +267,8 @@ func (p *Playground) createOffspring(parentScores []BrainScore) *DNA {
 }
 
 func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, child *DNA, seenEdges IDSet) {
+	// fmt.Printf("Evaluating neuron %d\n", neuronID)
+
 	// Any parent that has the source neuron is a contender.
 	synContenders := make([]BrainScore, 0)
 	for _, parentScore := range parentScores {
@@ -265,13 +277,23 @@ func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, c
 		}
 		synContenders = append(synContenders, parentScore)
 	}
+	// fmt.Printf("-Parents %v have this neuron\n", synContenders)
 
-	for synID := range p.source.Synapses.srcMap[neuronID] {
+	// Get all the possible synapses from each parent with this neuron.
+	synCandidates := make(IDSet)
+	for _, score := range synContenders {
+		for synID := range p.codes[score.id].Synpases.srcMap[neuronID] {
+			synCandidates[synID] = member
+		}
+	}
+
+	for synID := range synCandidates {
 		// This edge has already been evaluated in this run.
 		if _, ok := seenEdges[synID]; ok {
 			continue
 		}
 		seenEdges[synID] = member
+		// fmt.Printf("--Evaluating syn %d from neuron %d\n", synID, neuronID)
 
 		// Compute a percentage chance for this edge to be included in the child.
 		inclusionChance := float32(0.0)
@@ -283,9 +305,11 @@ func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, c
 				dstContenders = append(dstContenders, parentScore)
 			}
 		}
+		// fmt.Printf("--The inclusion chance is %v from parents %v\n", inclusionChance, dstContenders)
 		if !p.mutationOccurs(inclusionChance) {
 			continue
 		}
+		// fmt.Printf("--The mutation occurs and syn %d is added\n", synID)
 
 		// Add the synapse to the child.
 		syn := p.source.Synapses.idMap[synID]
@@ -296,17 +320,16 @@ func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, c
 		if _, ok := child.Neurons[syn.dst]; ok {
 			continue
 		}
-		rndVal := p.rnd.Float32()
-		var dstIndex int
-		for index, chance := range geneChance(dstContenders) {
-			if rndVal < chance {
-				dstIndex = index
-				break
-			}
-			rndVal -= chance
-		}
-		child.SetNeuron(syn.dst, p.codes[dstContenders[dstIndex].id].Neurons[syn.dst])
 
+		dstIndex := p.randomParentGene(dstContenders)
+		child.SetNeuron(syn.dst, p.codes[dstContenders[dstIndex].id].Neurons[syn.dst])
+		// fmt.Printf("--Adding neuron %d from parent %d\n", syn.dst, dstIndex)
+
+		// Calling this function here makes this a DFS, which is already true
+		// anyway because to be a BFS, each new neuron would need to be added to a
+		// queue then popped off. However, the type of traversal doesn't affect the
+		// outcome since it's the same chance of including each edge regardless of
+		// the order it's evaluated in.
 		p.traverseEdges(syn.dst, parentScores, child, seenEdges)
 	}
 }
@@ -317,12 +340,12 @@ func (p *Playground) shiftConglomerate() {
 	for i := 0; i < neuronsToAdd; i++ {
 		// Okay to add a neuron on the same synapse more than once.
 		synID := p.rnd.Intn(p.source.Synapses.nextID)
-		p.source.AddInterNeuron(synID)
+		newInterID := p.source.AddInterNeuron(synID)
+		fmt.Printf("Adding new neuron %d on syn %d\n", newInterID, synID)
 	}
 
 	// Increase the number of synapses by the expansion percentage.
 	newSynapses := percentageOfWithMin1(p.source.Synapses.nextID, p.config.Mconf.SynapseExpansion)
-	// dstCandidates := make(map[IDType]IDSet, 0)
 
 	// Repurpose newSynapses to also represent an approximate clump size, so
 	// new synapses are generally created with pretty close srcs and dsts.
@@ -346,30 +369,6 @@ func (p *Playground) shiftConglomerate() {
 		}
 	}
 
-	// for _, srcType := range neuronTypes {
-	// 	if srcType == MOTOR {
-	// 		continue
-	// 	}
-
-	// 	for i := 0; i < p.source.NeuronIDs[srcType].Length(); i++ {
-	// 		src := p.source.NeuronIDs[srcType].GetId(i)
-
-	// 		dsts := p.downstreamNeurons(src, newSynapses+1)
-	// 		for dst := range dsts {
-	// 			dstType := p.source.GetNeuronType(dst)
-	// 			p.addSynIfNotExists(src, dst, srcType, dstType, dstCandidates)
-	// 			p.addSynIfNotExists(dst, src, srcType, dstType, dstCandidates)
-	// 		}
-	// 	}
-	// }
-
-	// synCandidates := make([]Synapse, 0)
-	// for src, dsts := range dstCandidates {
-	// 	for dst := range dsts {
-	// 		synCandidates = append(synCandidates, Synapse{src: src, dst: dst})
-	// 	}
-	// }
-
 	for i := 0; i < newSynapses; i++ {
 		if len(synCandidates) == 0 {
 			break
@@ -377,124 +376,66 @@ func (p *Playground) shiftConglomerate() {
 
 		rndIndex := p.rnd.Intn(len(synCandidates))
 		syn := synCandidates[rndIndex]
-		p.source.Synapses.AddNewSynapse(syn.src, syn.dst)
+		newSynID := p.source.Synapses.AddNewSynapse(syn.src, syn.dst)
+		fmt.Printf("Adding new synapse %+v with id %d\n", syn, newSynID)
 
-		// Remove the synapse from the list so it isn't chosen again.
+		// Remove the candidate from the list so it isn't chosen again.
 		synCandidates = removeIndexFromSynSlice(synCandidates, rndIndex)
 	}
 }
 
 func (p *Playground) nearbyNeurons(hops int) map[IDType]IDSet {
-	downstream := make(map[IDType]IDSet)
-	for _, srcType := range neuronTypes {
-		for i := 0; i < p.source.NeuronIDs[srcType].Length(); i++ {
-			src := p.source.NeuronIDs[srcType].GetId(i)
-			downstream[src] = p.source.Synapses.AllDsts(src)
+	// Iterate through all the synapses to get every neighboring neuron,
+	// regardless of the direction.
+	neighbors := make(map[IDType]IDSet)
+	for _, syn := range p.source.Synapses.idMap {
+		if _, ok := neighbors[syn.src]; !ok {
+			neighbors[syn.src] = make(IDSet)
 		}
-	}
-	fmt.Printf("Downstream %v\n", downstream)
-
-	upstream := make(map[IDType]IDSet)
-	for src, dsts := range downstream {
-		for dst := range dsts {
-			if _, ok := upstream[dst]; !ok {
-				upstream[dst] = make(IDSet)
-			}
-			upstream[dst][src] = member
+		if _, ok := neighbors[syn.dst]; !ok {
+			neighbors[syn.dst] = make(IDSet)
 		}
-	}
-	fmt.Printf("Upstream %v\n", upstream)
-
-	nearbyNeurons := make(map[IDType]IDSet, 0)
-	for _, srcType := range neuronTypes {
-		for i := 0; i < p.source.NeuronIDs[srcType].Length(); i++ {
-			src := p.source.NeuronIDs[srcType].GetId(i)
-
-			nearbyNeurons[src] = make(IDSet)
-			nearbyNeurons[src][src] = member
-
-			for hop := 0; hop < hops; hop++ {
-				pendingNearby := make(IDSet)
-				for nearby := range nearbyNeurons[src] {
-					for downstream := range downstream[nearby] {
-						pendingNearby[downstream] = member
-					}
-					for upstream := range upstream[nearby] {
-						pendingNearby[upstream] = member
-					}
-				}
-
-				for nearby := range pendingNearby {
-					nearbyNeurons[src][nearby] = member
-				}
-			}
-
-			delete(nearbyNeurons[src], src)
-		}
+		neighbors[syn.src][syn.dst] = member
+		neighbors[syn.dst][syn.src] = member
 	}
 
-	/*
-		// First find all neurons #hops away.
-		downstream := make(map[IDType]IDSet)
-		for _, srcType := range neuronTypes {
-			for i := 0; i < p.source.NeuronIDs[srcType].Length(); i++ {
-				src := p.source.NeuronIDs[srcType].GetId(i)
-				downstream[src] = p.downstreamNeurons(src, hops)
-			}
-		}
-		fmt.Printf("Downstream %v\n", downstream)
+	nearby := make(map[IDType]IDSet, 0)
 
-		// The downstream map can be flipped to get upstream neurons.
-		upstream := make(map[IDType]IDSet, 0)
-		for src, dsts := range downstream {
-			for dst := range dsts {
-				if _, ok := upstream[dst]; !ok {
-					upstream[dst] = make(IDSet)
-				}
-				upstream[dst][src] = member
-			}
-		}
-		fmt.Printf("Upstream %v\n", upstream)
+	for src := range neighbors {
+		nearby[src] = make(IDSet)
+		// Seed the map with the src neuron. This is needed for the traversal
+		// below, and is removed before returning.
+		nearby[src][src] = member
 
-		nearbyNeurons := make(map[IDType]IDSet, 0)
-		// For every one of my downstream, add their upstream.
-		for src, downstreams := range downstream {
-			if _, ok := nearbyNeurons[src]; !ok {
-				nearbyNeurons[src] = make(IDSet)
-			}
-			for downstream := range downstreams {
-				nearbyNeurons[src][downstream] = member
-				for upstream := range upstream[downstream] {
-					if src == upstream {
-						continue
-					}
-					nearbyNeurons[src][upstream] = member
+		// The neighbors map has neurons that are only one hop away, so the number
+		// of hops dictates how many times the neighbors are accessed.
+		for i := 0; i < hops; i++ {
+			// Build up a set of pending additions to the nearby map so its
+			// not edited during the iteration.
+			pendingNearby := make(IDSet)
+
+			// For every nearby neuron, add all its neighbors.
+			// On the first iteration (i=0), this just adds src's neighbors.
+			// On subsequent iterations, this adds the neighbors' neighbors.
+			for nearbyID := range nearby[src] {
+				for neighbor := range neighbors[nearbyID] {
+					pendingNearby[neighbor] = member
 				}
 			}
+
+			// Now that nearby[src] has been fully iterated over, it's safe to add
+			// the pending values.
+			for pending := range pendingNearby {
+				nearby[src][pending] = member
+			}
 		}
 
-	*/
-	return nearbyNeurons
+		// For the purposes of this function, a neuron is not near itself.
+		delete(nearby[src], src)
+	}
+
+	return nearby
 }
-
-// func (p *Playground) downstreamNeurons(src IDType, hops int) IDSet {
-// 	if hops == 0 {
-// 		return make(IDSet, 0)
-// 	}
-
-// 	downstream := make(IDSet)
-// 	for dst := range p.source.Synapses.AllDsts(src) {
-// 		// Add all neurons immediately downstream of this one.
-// 		downstream[dst] = member
-
-// 		// Recurse to add all further downstream neurons.
-// 		for downstreamDst := range p.downstreamNeurons(dst, hops-1) {
-// 			downstream[downstreamDst] = member
-// 		}
-// 	}
-
-// 	return downstream
-// }
 
 // Take a new offspring and (maybe) give it some new structure from the source.
 // The only mutations that can occur on the conglomerate involve at least one
@@ -627,6 +568,19 @@ func geneChance(scores []BrainScore) []float32 {
 		geneChance[i] = float32(scores[i].score) / float32(scoreTotal)
 	}
 	return geneChance
+}
+
+func (p *Playground) randomParentGene(parentScores []BrainScore) int {
+	rndVal := p.rnd.Float32()
+	var dstIndex int
+	for index, chance := range geneChance(parentScores) {
+		if rndVal < chance {
+			dstIndex = index
+			break
+		}
+		rndVal -= chance
+	}
+	return dstIndex
 }
 
 func percentageOfWithMin1(val int, percent float32) int {
