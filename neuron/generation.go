@@ -1,9 +1,5 @@
 package neuron
 
-import (
-	"fmt"
-)
-
 // GenerateInputsFunc returns a set of inputs, which is called when needed
 // (after each output). The actions param indicate how many outputs have
 // It's the responsibility of the owner of the function to
@@ -77,7 +73,7 @@ func (g *Generation) fireBrain(id IDType, scoreChan chan BrainScore) {
 	brain.SeeInput(g.config.InputsFn(actions))
 
 	for step := 1; step <= g.config.MaxSteps; step++ {
-		fmt.Printf("running brain step %d\n", step)
+		// fmt.Printf("running brain step %d\n", step)
 		if !brain.StepFunction() {
 			continue
 		}

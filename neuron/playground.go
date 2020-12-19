@@ -2,6 +2,7 @@ package neuron
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 	"time"
@@ -13,7 +14,7 @@ type EvolutionConfig struct {
 	// Percent of species that die off each generation.
 	BottomTierPercent float32
 
-	DistanceThreshold int
+	DistanceThreshold float32
 }
 
 type MutationConfig struct {
@@ -95,9 +96,11 @@ func (p *Playground) InitDNA() {
 
 func (p *Playground) SimulatePlayground() {
 	for gen := 0; gen < p.config.Generations; gen++ {
+		fmt.Printf("Simulating generation %d\n", gen)
 		g := NewGeneration(p.config.Gconf, p.codes)
 
 		scores := g.FireBrains()
+		fmt.Printf("Scores %v\n", scores)
 
 		// fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
 		// 	scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
@@ -112,7 +115,6 @@ func (p *Playground) SimulatePlayground() {
 		for speciesID, species := range p.species {
 			childCodes := p.reproduction(species, speciesOffspring[speciesID])
 			for id, child := range childCodes {
-
 				p.mutateDNAStructure(child)
 				p.mutateNeurons(child)
 
@@ -122,7 +124,11 @@ func (p *Playground) SimulatePlayground() {
 			currentMaxID = len(newCodes)
 		}
 
-		for _, species := range p.species {
+		for speciesID, species := range p.species {
+			if species.Size() == 0 {
+				delete(p.species, speciesID)
+				continue
+			}
 			// Include one DNA from this generation to represent the species for the
 			// next gen.
 			species.rep = p.codes[species.scores[0].id]
@@ -152,18 +158,24 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 			}
 			foundSpecies = true
 			species.scores = append(species.scores, score)
+			// fmt.Printf("Adding score %+v: to existing species: %+v\n", score, species)
+			break
 		}
+
+		// No existing species matched, so create a new one.
 		if !foundSpecies {
 			p.species[nextSpeciesID] = &Species{
 				rep:    p.codes[score.id],
 				scores: []BrainScore{score},
 			}
+			// fmt.Printf("Didn't find species, adding score %+v: to new species: %+v\n", score, p.species[nextSpeciesID])
 		}
 	}
 
 	// Adjust the fitness score for each member.
 	totalGenerationFitness := ScoreType(0)
 	for speciesID, species := range p.species {
+		// fmt.Printf("Adjusting species #%d fitness: %+v\n", speciesID, species)
 		if species.Size() == 0 {
 			delete(p.species, speciesID)
 			continue
@@ -172,6 +184,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 			adjustedFitness := score.score / ScoreType(species.Size())
 			species.scores[index].score = adjustedFitness
 			species.fitness += adjustedFitness
+			// fmt.Printf("Adjusted fitness for score %+v is %d\n", score, adjustedFitness)
 		}
 		totalGenerationFitness += species.fitness
 	}
@@ -179,14 +192,17 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 	// Use the total fitness of the species to determine how many offspring
 	// in the next generation are from each species.
 	offspringPerSpecies := make(map[IDType]int, len(p.species))
+
+	baseValue := float64(p.config.NumVariants) / float64(totalGenerationFitness)
 	for speciesID, species := range p.species {
-		offspringPerSpecies[speciesID] = percentageOfWithMin1(p.config.NumVariants,
-			float32(species.fitness)/float32(totalGenerationFitness))
+		offspringPerSpecies[speciesID] = int(math.Round(float64(species.fitness) * baseValue))
+		fmt.Printf("Total fitness evaluation for species %d %+v gets %d offspring\n",
+			speciesID, species, offspringPerSpecies[speciesID])
 	}
 	return offspringPerSpecies
 }
 
-func dnaDistance(a, b *DNA) int {
+func dnaDistance(a, b *DNA) float32 {
 	matchingEdges := 0
 	for synID := range a.Synpases.idMap {
 		if _, ok := b.Synpases.idMap[synID]; ok {
@@ -194,12 +210,12 @@ func dnaDistance(a, b *DNA) int {
 		}
 	}
 
-	nonMatchingEdges := len(a.Synpases.idMap) + len(b.Synpases.idMap) - (2 * matchingEdges)
+	totalEdges := len(a.Synpases.idMap) + len(b.Synpases.idMap)
+	nonMatchingEdges := totalEdges - (2 * matchingEdges)
 
-	// Add a factor that includes the neuron ops and seeds
+	// Could add a factor that includes the ops and seeds.
 
-	// and make distance threshold into a float32
-	return nonMatchingEdges / 200 // total edges?
+	return float32(nonMatchingEdges) / float32(totalEdges)
 }
 
 func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType]*DNA {
@@ -340,8 +356,8 @@ func (p *Playground) shiftConglomerate() {
 	for i := 0; i < neuronsToAdd; i++ {
 		// Okay to add a neuron on the same synapse more than once.
 		synID := p.rnd.Intn(p.source.Synapses.nextID)
-		newInterID := p.source.AddInterNeuron(synID)
-		fmt.Printf("Adding new neuron %d on syn %d\n", newInterID, synID)
+		p.source.AddInterNeuron(synID)
+		// fmt.Printf("Adding new neuron %d on syn %d\n", newInterID, synID)
 	}
 
 	// Increase the number of synapses by the expansion percentage.
@@ -376,8 +392,8 @@ func (p *Playground) shiftConglomerate() {
 
 		rndIndex := p.rnd.Intn(len(synCandidates))
 		syn := synCandidates[rndIndex]
-		newSynID := p.source.Synapses.AddNewSynapse(syn.src, syn.dst)
-		fmt.Printf("Adding new synapse %+v with id %d\n", syn, newSynID)
+		p.source.Synapses.AddNewSynapse(syn.src, syn.dst)
+		// fmt.Printf("Adding new synapse %+v with id %d\n", syn, newSynID)
 
 		// Remove the candidate from the list so it isn't chosen again.
 		synCandidates = removeIndexFromSynSlice(synCandidates, rndIndex)

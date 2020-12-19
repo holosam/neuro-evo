@@ -295,11 +295,11 @@ func Flourish(dna *DNA) *Brain {
 
 func (b *Brain) SeeInput(sigs []SignalType) {
 	for i, sig := range sigs {
-		fmt.Printf("input for signal %d is %d\n", i, sig)
+		// fmt.Printf("input for signal %d is %d\n", i, sig)
 		// Send the signal to the vision ID at the signal's index.
 		b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(i), sig)
 	}
-	fmt.Printf("full pending signals %v\n", b.pendingSignals)
+	// fmt.Printf("full pending signals %v\n", b.pendingSignals)
 }
 
 func (b *Brain) Output() []SignalType {
@@ -333,7 +333,7 @@ func (b *Brain) StepFunction() bool {
 
 		neuron := b.dna.Neurons[neuronID]
 		output := neuron.Fire(inputs)
-		fmt.Printf("firing neuron %+v with inputs %v and got output: %d\n", neuron, inputs, output)
+		// fmt.Printf("firing neuron %+v with inputs %v and got output: %d\n", neuron, inputs, output)
 
 		// Clear this neuron's pending signals now that it has fired.
 		// It's okay to edit the underlying map while iterating.
@@ -345,7 +345,7 @@ func (b *Brain) StepFunction() bool {
 			if _, ok := b.outputSignals[neuronID]; !ok {
 				b.outputSignals[neuronID] = output
 			}
-			fmt.Printf("output signals: %v\n", b.outputSignals)
+			// fmt.Printf("output signals: %v\n", b.outputSignals)
 			// Done is true if all motor neurons have an output.
 			done = len(b.outputSignals) == b.dna.Source.NeuronIDs[MOTOR].Length()
 		}

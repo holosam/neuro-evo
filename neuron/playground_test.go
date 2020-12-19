@@ -46,47 +46,13 @@ func TestInitDNA(t *testing.T) {
 	}
 }
 
-/*
-func TestSimulatePlayground(t *testing.T) {
+func CreateTestPlayground() *Playground {
 	p := NewPlayground(PlaygroundConfig{
-		DnaSeedSnippets:  10,
-		DnaSeedMutations: 10,
+		NumInputs:  2,
+		NumOutputs: 1,
 
-		NumSpecies:   10,
-		Generations:  5,
-		RoundsPerGen: 3,
-		GenInputsFn: func(round int) []SignalType {
-			return []SignalType{1, 2}
-		},
-
-		FitnessFn: func(inputs []SignalType, outputs []SignalType) ScoreType {
-			if len(outputs) == 0 {
-				return math.MaxUint64
-			}
-			return ScoreType(outputs[0])
-		},
-		NumParents: 3,
-
-		Gconf: GenerationConfig{
-			MaxSteps: 10,
-		},
-	})
-	p.SeedRandDNA()
-	arbitaryDNA := p.codes[0]
-
-	p.SimulatePlayground()
-
-	if arbitaryDNA == p.codes[0] {
-		t.Errorf("Expected evolution, got nothing")
-	}
-}
-*/
-
-func CreateTestConglomerate() *Playground {
-	p := NewPlayground(PlaygroundConfig{
-		NumInputs:   2,
-		NumOutputs:  1,
 		NumVariants: 10,
+		Generations: 3,
 
 		Mconf: MutationConfig{
 			// Guaranteed at least 1 addition regardless of these values.
@@ -104,6 +70,23 @@ func CreateTestConglomerate() *Playground {
 		Econf: EvolutionConfig{
 			Parents:           2,
 			BottomTierPercent: 0.25,
+			DistanceThreshold: 0.2,
+		},
+
+		Gconf: GenerationConfig{
+			Rounds:   2,
+			MaxSteps: 20,
+
+			InputsFn: func(actions int) []SignalType {
+				if actions >= 2 {
+					return []SignalType{}
+				}
+				return []SignalType{SignalType(actions + 1), SignalType(actions + 2)}
+			},
+
+			FitnessFn: func(outputs []SignalType) ScoreType {
+				return ScoreType(outputs[0])
+			},
 		},
 	})
 	p.InitDNA() // Makes vision N0, N1, and motor N2 with Syn0 and Syn1.
@@ -139,8 +122,77 @@ func CreateTestConglomerate() *Playground {
 	return p
 }
 
+func TestSimulatePlayground(t *testing.T) {
+	p := CreateTestPlayground()
+	arbitaryDNA := p.codes[0]
+
+	p.SimulatePlayground()
+
+	if arbitaryDNA == p.codes[0] {
+		t.Errorf("Expected evolution, got nothing")
+	}
+
+	t.Errorf("Error to read logs")
+}
+
+func TestSpeciation(t *testing.T) {
+	p := CreateTestPlayground()
+
+	scores := make([]BrainScore, p.config.NumVariants)
+	for i := 0; i < p.config.NumVariants; i++ {
+		scores[i] = BrainScore{id: i, score: ScoreType(p.rnd.Intn(100))}
+	}
+
+	p.species[0] = &Species{
+		rep: p.codes[0],
+	}
+
+	speciesOffspring := p.speciation(scores)
+	fmt.Printf("speciesOffspring: %v\n", speciesOffspring)
+
+	if p.species[0].scores[0].id != 0 {
+		t.Errorf("0 didn't get grouped")
+	}
+
+	sumOffspring := 0
+	for _, offspring := range speciesOffspring {
+		sumOffspring += offspring
+	}
+	if got, want := sumOffspring, p.config.NumVariants; got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+}
+
+func TestDNADistance(t *testing.T) {
+	p := CreateTestPlayground()
+
+	a := NewDNA(p.source)
+	a.AddNeuron(0, OR)
+	a.AddNeuron(1, OR)
+	a.AddNeuron(2, OR)
+	a.AddNeuron(3, OR)
+	a.AddSynapse(0)
+	a.AddSynapse(1)
+	a.AddSynapse(2)
+	a.AddSynapse(3)
+
+	b := NewDNA(p.source)
+	b.AddNeuron(0, OR)
+	b.AddNeuron(1, OR)
+	b.AddNeuron(2, OR)
+	b.AddNeuron(4, OR)
+	b.AddSynapse(0)
+	b.AddSynapse(8)
+	b.AddSynapse(4)
+	b.AddSynapse(5)
+
+	if got, want := dnaDistance(a, b), float32(6)/float32(8); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+}
+
 func TestReproduction(t *testing.T) {
-	p := CreateTestConglomerate()
+	p := CreateTestPlayground()
 	species := &Species{
 		scores: []BrainScore{
 			{id: 0, score: 200},
@@ -151,17 +203,17 @@ func TestReproduction(t *testing.T) {
 	}
 
 	newCodes := p.reproduction(species, 2)
-	if got, want := len(newCodes), 2; want != got {
+	if got, want := len(newCodes), 2; got != want {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 	// The variant with score 100 dies off.
-	if got, want := species.Size(), 3; want != got {
+	if got, want := species.Size(), 3; got != want {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 }
 
 func TestCreateOffspring(t *testing.T) {
-	p := CreateTestConglomerate()
+	p := CreateTestPlayground()
 
 	fmt.Printf("dna 0: %s\n", p.codes[0].PrettyPrint())
 	fmt.Printf("dna 1: %s\n", p.codes[1].PrettyPrint())
@@ -176,7 +228,7 @@ func TestCreateOffspring(t *testing.T) {
 }
 
 func TestShiftConglomerate(t *testing.T) {
-	p := CreateTestConglomerate()
+	p := CreateTestPlayground()
 
 	numInterBefore := p.source.NeuronIDs[INTER].Length()
 	nextIDBefore := p.source.Synapses.nextID
@@ -205,7 +257,7 @@ func testMakeIDSet(ids ...IDType) IDSet {
 }
 
 func TestNearbyNeurons(t *testing.T) {
-	p := CreateTestConglomerate()
+	p := CreateTestPlayground()
 
 	expected := make(map[IDType]IDSet)
 	expected[0] = testMakeIDSet(2, 3, 4)
@@ -291,7 +343,7 @@ func TestMutateDNAStructure(t *testing.T) {
 
 func TestMutateNeurons(t *testing.T) {
 	dna := SimpleTestDNA()
-	p := CreateTestConglomerate()
+	p := CreateTestPlayground()
 
 	p.mutateNeurons(dna)
 	if got, want := dna.PrettyPrint(), SimpleTestDNA().PrettyPrint(); got == want {
