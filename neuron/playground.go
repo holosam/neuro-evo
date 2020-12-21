@@ -100,7 +100,7 @@ func (p *Playground) SimulatePlayground() {
 		g := NewGeneration(p.config.Gconf, p.codes)
 
 		scores := g.FireBrains()
-		fmt.Printf("Scores %v\n", scores)
+		// fmt.Printf("Scores %v\n", scores)
 
 		// fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
 		// 	scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
@@ -125,10 +125,16 @@ func (p *Playground) SimulatePlayground() {
 		}
 
 		for speciesID, species := range p.species {
+			// Should species still be tracked over generations just in case they
+			// come back?
 			if species.Size() == 0 {
 				delete(p.species, speciesID)
 				continue
 			}
+
+			fmt.Printf("Species %d (size %d) has fitness %d, represented by \n%s\n",
+				speciesID, species.Size(), species.fitness, species.rep.PrettyPrint())
+
 			// Include one DNA from this generation to represent the species for the
 			// next gen.
 			species.rep = p.codes[species.scores[0].id]
@@ -196,8 +202,8 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 	baseValue := float64(p.config.NumVariants) / float64(totalGenerationFitness)
 	for speciesID, species := range p.species {
 		offspringPerSpecies[speciesID] = int(math.Round(float64(species.fitness) * baseValue))
-		fmt.Printf("Total fitness evaluation for species %d %+v gets %d offspring\n",
-			speciesID, species, offspringPerSpecies[speciesID])
+		// fmt.Printf("Total fitness evaluation for species %d %+v gets %d offspring\n",
+		// 	speciesID, species, offspringPerSpecies[speciesID])
 	}
 	return offspringPerSpecies
 }

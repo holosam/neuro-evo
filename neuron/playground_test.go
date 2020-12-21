@@ -131,8 +131,6 @@ func TestSimulatePlayground(t *testing.T) {
 	if arbitaryDNA == p.codes[0] {
 		t.Errorf("Expected evolution, got nothing")
 	}
-
-	t.Errorf("Error to read logs")
 }
 
 func TestSpeciation(t *testing.T) {
