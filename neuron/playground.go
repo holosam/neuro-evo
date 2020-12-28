@@ -140,62 +140,6 @@ func (p *Playground) Evolve(scores []BrainScore) {
 	}
 }
 
-/*
-func (p *Playground) SimulatePlayground() {
-	for gen := 0; gen < p.config.Generations; gen++ {
-		fmt.Printf("Simulating generation %d\n", gen)
-		g := NewGeneration(p.config.Gconf, p.codes)
-
-		scores := g.FireBrains()
-		// fmt.Printf("Scores %v\n", scores)
-
-		// fmt.Printf("Gen %d scores: Max=%d 75th=%d 50th=%d 25th=%d Min=%d\n", gen,
-		// 	scores[0].score, scores[len(scores)/4].score, scores[2*len(scores)/4].score,
-		// 	scores[3*len(scores)/4].score, scores[len(scores)-1].score)
-
-		p.shiftConglomerate()
-
-		speciesOffspring := p.speciation(scores)
-
-		newCodes := make(map[IDType]*DNA, p.config.NumVariants)
-		currentMaxID := 0
-		for speciesID, species := range p.species {
-			childCodes := p.reproduction(species, speciesOffspring[speciesID])
-			for id, child := range childCodes {
-				p.mutateDNAStructure(child)
-				p.mutateNeurons(child)
-
-				newCodes[currentMaxID+id] = child
-			}
-
-			currentMaxID = len(newCodes)
-		}
-
-		for speciesID, species := range p.species {
-			// Should species still be tracked over generations just in case they
-			// come back?
-			if species.Size() == 0 {
-				delete(p.species, speciesID)
-				continue
-			}
-
-			fmt.Printf("Species %d (size %d) has fitness %d, represented by \n%s\n",
-				speciesID, species.Size(), species.fitness, species.rep.PrettyPrint())
-
-			// Include one DNA from this generation to represent the species for the
-			// next gen.
-			species.rep = p.codes[species.scores[0].id]
-			// Clear all members from the species since they are no longer needed.
-			species.scores = make([]BrainScore, 0)
-		}
-
-		for id, code := range newCodes {
-			p.codes[id] = code
-		}
-	}
-}
-*/
-
 // Break DNA into species based on the distance between their structures.
 func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 	// Figure out which species this genome belongs in.
