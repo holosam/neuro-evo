@@ -46,8 +46,8 @@ func TestInitDNA(t *testing.T) {
 	}
 }
 
-func CreateTestPlayground() *Playground {
-	p := NewPlayground(PlaygroundConfig{
+func createTestPlayConfig() PlaygroundConfig {
+	return PlaygroundConfig{
 		NumInputs:  2,
 		NumOutputs: 1,
 
@@ -72,23 +72,11 @@ func CreateTestPlayground() *Playground {
 			BottomTierPercent: 0.25,
 			DistanceThreshold: 0.2,
 		},
+	}
+}
 
-		Gconf: GenerationConfig{
-			Rounds:   2,
-			MaxSteps: 20,
-
-			InputsFn: func(actions int) []SignalType {
-				if actions >= 2 {
-					return []SignalType{}
-				}
-				return []SignalType{SignalType(actions + 1), SignalType(actions + 2)}
-			},
-
-			FitnessFn: func(outputs []SignalType) ScoreType {
-				return ScoreType(outputs[0])
-			},
-		},
-	})
+func CreateTestPlayground() *Playground {
+	p := NewPlayground(createTestPlayConfig())
 	p.InitDNA() // Makes vision N0, N1, and motor N2 with Syn0 and Syn1.
 
 	p.source.AddInterNeuron(0) // Syn0 connects N0 to N2, makes N3 (Syn2 and Syn3)
@@ -120,17 +108,6 @@ func CreateTestPlayground() *Playground {
 	}
 
 	return p
-}
-
-func TestSimulatePlayground(t *testing.T) {
-	p := CreateTestPlayground()
-	arbitaryDNA := p.codes[0]
-
-	p.SimulatePlayground()
-
-	if arbitaryDNA == p.codes[0] {
-		t.Errorf("Expected evolution, got nothing")
-	}
 }
 
 func TestSpeciation(t *testing.T) {
@@ -186,6 +163,39 @@ func TestDNADistance(t *testing.T) {
 
 	if got, want := dnaDistance(a, b), float32(6)/float32(8); got != want {
 		t.Errorf("Got %v, want %v", got, want)
+	}
+}
+
+func TestPartitionOffspring(t *testing.T) {
+	p := CreateTestPlayground()
+
+	// NumVariants is 10, total fitness is 100.
+	// baseValue = 0.1
+	p.species[0] = &Species{
+		fitness: 94, // 94 * 0.1 = 6.4, gets rounded down to 9 with 0.4 remainder.
+	}
+	p.species[1] = &Species{
+		fitness: 3, // 3 * 0.1 + 0.4 = 0.7, gets rounded up to 1 with -0.3 remainder.
+	}
+	p.species[2] = &Species{
+		fitness: 3, // 3 * 0.1 - 0.3 = 0, gets rounded down to 0 with 0.0 remainder.
+	}
+
+	result := p.partitionOffspring()
+
+	expected := make(map[IDType]int, 3)
+	expected[0] = 9
+	expected[1] = 1
+	expected[2] = 0
+
+	if !reflect.DeepEqual(result, expected) {
+		// Depending on the order the keys are looped through, the other species
+		// could get the correction
+		expected[1] = 0
+		expected[2] = 1
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("Got %v, want %v", expected, result)
+		}
 	}
 }
 

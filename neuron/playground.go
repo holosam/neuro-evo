@@ -40,7 +40,7 @@ type PlaygroundConfig struct {
 
 	// Nested configs
 	Econf EvolutionConfig
-	Gconf GenerationConfig
+	// Gconf GenerationConfig
 	Mconf MutationConfig
 }
 
@@ -94,6 +94,53 @@ func (p *Playground) InitDNA() {
 	}
 }
 
+func (p *Playground) GetBrain(id IDType) *Brain {
+	return Flourish(p.codes[id])
+}
+
+func (p *Playground) Evolve(scores []BrainScore) {
+	p.shiftConglomerate()
+
+	speciesOffspring := p.speciation(scores)
+
+	newCodes := make(map[IDType]*DNA, p.config.NumVariants)
+	currentMaxID := 0
+	for speciesID, species := range p.species {
+		childCodes := p.reproduction(species, speciesOffspring[speciesID])
+		for id, child := range childCodes {
+			p.mutateDNAStructure(child)
+			p.mutateNeurons(child)
+
+			newCodes[currentMaxID+id] = child
+		}
+
+		currentMaxID = len(newCodes)
+	}
+
+	for speciesID, species := range p.species {
+		// Should species still be tracked over generations just in case they
+		// come back?
+		if species.Size() == 0 {
+			delete(p.species, speciesID)
+			continue
+		}
+
+		fmt.Printf("Species %d (size %d) has fitness %d, represented by \n%s\n",
+			speciesID, species.Size(), species.fitness, species.rep.PrettyPrint())
+
+		// Include one DNA from this generation to represent the species for the
+		// next gen.
+		species.rep = p.codes[species.scores[0].id]
+		// Clear all members from the species since they are no longer needed.
+		species.scores = make([]BrainScore, 0)
+	}
+
+	for id, code := range newCodes {
+		p.codes[id] = code
+	}
+}
+
+/*
 func (p *Playground) SimulatePlayground() {
 	for gen := 0; gen < p.config.Generations; gen++ {
 		fmt.Printf("Simulating generation %d\n", gen)
@@ -147,6 +194,7 @@ func (p *Playground) SimulatePlayground() {
 		}
 	}
 }
+*/
 
 // Break DNA into species based on the distance between their structures.
 func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
@@ -179,7 +227,6 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 	}
 
 	// Adjust the fitness score for each member.
-	totalGenerationFitness := ScoreType(0)
 	for speciesID, species := range p.species {
 		// fmt.Printf("Adjusting species #%d fitness: %+v\n", speciesID, species)
 		if species.Size() == 0 {
@@ -192,20 +239,9 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 			species.fitness += adjustedFitness
 			// fmt.Printf("Adjusted fitness for score %+v is %d\n", score, adjustedFitness)
 		}
-		totalGenerationFitness += species.fitness
 	}
 
-	// Use the total fitness of the species to determine how many offspring
-	// in the next generation are from each species.
-	offspringPerSpecies := make(map[IDType]int, len(p.species))
-
-	baseValue := float64(p.config.NumVariants) / float64(totalGenerationFitness)
-	for speciesID, species := range p.species {
-		offspringPerSpecies[speciesID] = int(math.Round(float64(species.fitness) * baseValue))
-		// fmt.Printf("Total fitness evaluation for species %d %+v gets %d offspring\n",
-		// 	speciesID, species, offspringPerSpecies[speciesID])
-	}
-	return offspringPerSpecies
+	return p.partitionOffspring()
 }
 
 func dnaDistance(a, b *DNA) float32 {
@@ -222,6 +258,33 @@ func dnaDistance(a, b *DNA) float32 {
 	// Could add a factor that includes the ops and seeds.
 
 	return float32(nonMatchingEdges) / float32(totalEdges)
+}
+
+func (p *Playground) partitionOffspring() map[IDType]int {
+	totalGenerationFitness := ScoreType(0)
+	for _, species := range p.species {
+		totalGenerationFitness += species.fitness
+	}
+
+	// Use the total fitness of the species to determine how many offspring
+	// in the next generation are from each species.
+	offspringPerSpecies := make(map[IDType]int, len(p.species))
+
+	// It's possible for the sum of offspring to be different than NumVariants.
+	// with simple rounding. For example, Variants = 3, species fitness =
+	// [23, 3, 4], results become [2, 0, 0]. So instead, the remainder of the
+	// fitness fraction gets added/subtracted to the next species.
+	correction := 0.0
+
+	baseValue := float64(p.config.NumVariants) / float64(totalGenerationFitness)
+	for speciesID, species := range p.species {
+		offspring := (float64(species.fitness) * baseValue) + correction
+		offspringPerSpecies[speciesID] = int(math.Round(offspring))
+		correction = offspring - float64(offspringPerSpecies[speciesID])
+		fmt.Printf("Species %d %+v gets %d offspring\n", speciesID, species, offspringPerSpecies[speciesID])
+	}
+
+	return offspringPerSpecies
 }
 
 func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType]*DNA {

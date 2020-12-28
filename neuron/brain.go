@@ -293,16 +293,21 @@ func Flourish(dna *DNA) *Brain {
 	}
 }
 
-func (b *Brain) SeeInput(sigs []SignalType) {
-	for i, sig := range sigs {
-		// fmt.Printf("input for signal %d is %d\n", i, sig)
+func (b *Brain) Fire(inputs []SignalType) []SignalType {
+	for index, input := range inputs {
 		// Send the signal to the vision ID at the signal's index.
-		b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(i), sig)
+		b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(index), input)
 	}
-	// fmt.Printf("full pending signals %v\n", b.pendingSignals)
-}
 
-func (b *Brain) Output() []SignalType {
+	step := 0
+	for !b.stepFunction() {
+		step++
+		if step >= 200 {
+			fmt.Printf("Step hit 200, breaking. \n")
+			return make([]SignalType, 0)
+		}
+	}
+
 	output := make([]SignalType, len(b.outputSignals))
 	for id, sig := range b.outputSignals {
 		output[b.dna.Source.NeuronIDs[MOTOR].GetIndex(id)] = sig
@@ -312,7 +317,7 @@ func (b *Brain) Output() []SignalType {
 	return output
 }
 
-func (b *Brain) StepFunction() bool {
+func (b *Brain) stepFunction() bool {
 	// Create a separate map that will be merged with pendingSignals after all
 	// firing is done. This avoids a race condition where a synapse would add
 	// a pending signal to the map and then be cleared later if that neuron fires
@@ -333,7 +338,7 @@ func (b *Brain) StepFunction() bool {
 
 		neuron := b.dna.Neurons[neuronID]
 		output := neuron.Fire(inputs)
-		// fmt.Printf("firing neuron %+v with inputs %v and got output: %d\n", neuron, inputs, output)
+		// fmt.Printf("firing neuron %d %+v with inputs %v and got output: %d\n", neuronID, neuron, inputs, output)
 
 		// Clear this neuron's pending signals now that it has fired.
 		// It's okay to edit the underlying map while iterating.
@@ -359,6 +364,7 @@ func (b *Brain) StepFunction() bool {
 	// Merge in nextPending now that the step is over.
 	for neuronID, signals := range nextPending {
 		for _, sig := range signals {
+			// fmt.Printf("new pending signal %d for %d\n", sig, neuronID)
 			b.addPendingSignal(neuronID, sig)
 		}
 	}

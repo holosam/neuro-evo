@@ -1,13 +1,12 @@
 package neuron
 
+/*
 // GenerateInputsFunc returns a set of inputs, which is called when needed
 // (after each output). The actions param indicate how many outputs have
 // It's the responsibility of the owner of the function to
 // track the progress of the session and input values accordingly.
 // When this function returns an empty list, the simulation is ended.
 type GenerateInputsFunc func(actions int) []SignalType
-
-type ScoreType uint64
 
 // FitnessFunc scores the output based on its effect on the session.
 // It's only called when the brain has a full output, so the outputs param
@@ -92,3 +91,4 @@ func (g *Generation) fireBrain(id IDType, scoreChan chan BrainScore) {
 		score: score,
 	}
 }
+*/

@@ -1,6 +1,7 @@
 package neuron
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -194,7 +195,7 @@ func TestBrainStep(t *testing.T) {
 		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 
-	isDone := b.StepFunction()
+	isDone := b.stepFunction()
 	if want, got := false, isDone; want != got {
 		t.Errorf("Want %v, got %v", want, got)
 	}
@@ -206,26 +207,51 @@ func TestBrainStep(t *testing.T) {
 	}
 
 	// Ensure the pending signals aren't cleared without firing.
-	b.StepFunction()
+	b.stepFunction()
 	if !reflect.DeepEqual(wantMap, b.pendingSignals) {
 		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 }
 
-func TestEyesightAndMuscles(t *testing.T) {
+func TestBrainFire(t *testing.T) {
 	b := Flourish(SimpleTestDNA())
-	b.SeeInput([]SignalType{1, 2})
+	if got, want := b.Fire([]SignalType{1, 2}), []SignalType{3}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Want %v, got %v", want, got)
+	}
+}
 
-	// First step fires the vision neurons and pends for the motor neuron.
-	if want, got := false, b.StepFunction(); want != got {
-		t.Fatalf("Want %v, got %v", want, got)
+// Create a circular brain that won't ever output to test if Fire will
+// stop.
+func TestCircularBrainFiring(t *testing.T) {
+	c := NewConglomerate()
+	c.AddVisionAndMotor(2, 1)
+	c.AddInterNeuron(0)
+	c.AddInterNeuron(1)
+	c.AddInterNeuron(3)
+	syn43 := c.Synapses.AddNewSynapse(4, 3)
+	syn54 := c.Synapses.AddNewSynapse(5, 4)
+
+	d := NewDNA(c)
+	for neuronID := 0; neuronID < 6; neuronID++ {
+		d.AddNeuron(neuronID, OR)
+		if neuronID == 2 {
+			continue
+		}
+		d.SetSeed(neuronID, 0)
 	}
 
-	// Second step fires the motor neuron.
-	if want, got := true, b.StepFunction(); want != got {
-		t.Fatalf("Want %v, got %v", want, got)
-	}
-	if want, got := SignalType(3), b.Output()[0]; want != got {
+	d.AddSynapse(1)
+	d.AddSynapse(2)
+	d.AddSynapse(4)
+	d.AddSynapse(6)
+	d.AddSynapse(syn43)
+	d.AddSynapse(syn54)
+
+	fmt.Printf("Circular brain: %s\n", d.PrettyPrint())
+
+	b := Flourish(d)
+	got := b.Fire([]SignalType{1, 2})
+	if want := []SignalType{0}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }
