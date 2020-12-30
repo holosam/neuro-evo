@@ -30,9 +30,11 @@ func DefaultRunnerConfig() neuron.RunnerConfig {
 			},
 
 			Econf: neuron.EvolutionConfig{
-				Parents:           3,
-				BottomTierPercent: 0.25,
-				DistanceThreshold: 0.3,
+				Parents:                 3,
+				BottomTierPercent:       0.25,
+				DistanceThreshold:       0.35,
+				DistanceEdgeFactor:      0.8,
+				DistanceOperationFactor: 0.2,
 			},
 		},
 	}

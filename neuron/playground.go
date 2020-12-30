@@ -14,7 +14,11 @@ type EvolutionConfig struct {
 	// Percent of species that die off each generation.
 	BottomTierPercent float32
 
+	// Genome distance to be considered a different species.
 	DistanceThreshold float32
+
+	DistanceEdgeFactor      float32
+	DistanceOperationFactor float32
 }
 
 type MutationConfig struct {
@@ -118,8 +122,6 @@ func (p *Playground) Evolve(scores []BrainScore) {
 	}
 
 	for speciesID, species := range p.species {
-		// Should species still be tracked over generations just in case they
-		// come back?
 		if species.Size() == 0 {
 			delete(p.species, speciesID)
 			continue
@@ -190,20 +192,41 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 	return p.partitionOffspring()
 }
 
-func dnaDistance(a, b *DNA) float32 {
+// Computes a number [0-1] for the distance between these two genomes based
+// mostly on their structures and a bit on their neuron operations. Simply
+// having matching neuronIDs is rather meaningless for how the genomes will
+// operate, so this function attempts to compute the distance based on how
+// different their outcomes will be.
+func (p *Playground) dnaDistance(a, b *DNA) float32 {
 	matchingEdges := 0
+	matchingOperations := 0
 	for synID := range a.Synpases.idMap {
-		if _, ok := b.Synpases.idMap[synID]; ok {
+		if syn, ok := b.Synpases.idMap[synID]; ok {
 			matchingEdges++
+
+			// If the src and dst neuron for this edge match, then count it.
+			// This will naturally double count neurons, however it keeps with the
+			// theme of computing genome distance based on edges.
+			if a.Neurons[syn.src].IsEqual(b.Neurons[syn.src]) && a.Neurons[syn.dst].IsEqual(b.Neurons[syn.dst]) {
+				matchingOperations++
+			}
 		}
 	}
 
 	totalEdges := len(a.Synpases.idMap) + len(b.Synpases.idMap)
+
+	// The edge factor represents the distance between the structures of the two
+	// genomes, by calculating the percentage of mismatched edges.
 	nonMatchingEdges := totalEdges - (2 * matchingEdges)
+	edgeFactor := float32(nonMatchingEdges) / float32(totalEdges)
 
-	// Could add a factor that includes the ops and seeds.
+	// The neuron factor represents how different the operations are on the
+	// edges that do match.
+	nonMatchingOperations := matchingEdges - matchingOperations
+	neuronFactor := float32(nonMatchingOperations) / float32(matchingEdges)
 
-	return float32(nonMatchingEdges) / float32(totalEdges)
+	// The structure is weighted more than the operations.
+	return p.config.Econf.DistanceEdgeFactor*edgeFactor + p.config.Econf.DistanceOperationFactor*neuronFactor
 }
 
 func (p *Playground) partitionOffspring() map[IDType]int {

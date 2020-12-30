@@ -2,6 +2,7 @@ package neuron
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -67,9 +68,11 @@ func createTestPlayConfig() PlaygroundConfig {
 		},
 
 		Econf: EvolutionConfig{
-			Parents:           2,
-			BottomTierPercent: 0.25,
-			DistanceThreshold: 0.2,
+			Parents:                 2,
+			BottomTierPercent:       0.25,
+			DistanceThreshold:       0.2,
+			DistanceEdgeFactor:      0.8,
+			DistanceOperationFactor: 0.2,
 		},
 	}
 }
@@ -142,13 +145,16 @@ func TestDNADistance(t *testing.T) {
 
 	a := NewDNA(p.source)
 	a.AddNeuron(0, OR)
-	a.AddNeuron(1, OR)
+	a.AddNeuron(1, FALSIFY)
 	a.AddNeuron(2, OR)
 	a.AddNeuron(3, OR)
+	a.AddNeuron(4, OR)
 	a.AddSynapse(0)
-	a.AddSynapse(1)
 	a.AddSynapse(2)
 	a.AddSynapse(3)
+	a.AddSynapse(4)
+	a.AddSynapse(5)
+	a.AddSynapse(8)
 
 	b := NewDNA(p.source)
 	b.AddNeuron(0, OR)
@@ -160,7 +166,21 @@ func TestDNADistance(t *testing.T) {
 	b.AddSynapse(4)
 	b.AddSynapse(5)
 
-	if got, want := dnaDistance(a, b), float32(6)/float32(8); got != want {
+	// total edges = 6 + 4 = 10
+	// matching edges = 4
+	// non matching edges = 10 - (4 * 2) = 2
+	want := 0.8 * float32(2) / float32(10)
+
+	// matching operations = 3
+	// non matching operations = 4 - 3 = 1
+	want += 0.2 * float32(1) / float32(4)
+
+	got := dnaDistance(a, b)
+
+	// Correct for a potential inexact floating point result.
+	difference := math.Abs(float64(want) - float64(got))
+
+	if difference >= 0.0001 {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 }

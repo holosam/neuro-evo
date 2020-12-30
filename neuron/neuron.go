@@ -152,6 +152,10 @@ func (n *Neuron) Copy() *Neuron {
 	}
 }
 
+func (a *Neuron) IsEqual(b *Neuron) bool {
+	return a.op == b.op && a.hasSeed == b.hasSeed && a.seed == b.seed
+}
+
 func (n *Neuron) Fire(inputs []SignalType) SignalType {
 	// Seed inputs are "sticky" so they come back for every trigger.
 	if n.hasSeed {
