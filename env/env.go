@@ -6,27 +6,25 @@ import (
 	"time"
 )
 
-type EnvironmentConfig struct {
-	Pconf neuron.PlaygroundConfig
-}
+func DefaultRunnerConfig() neuron.RunnerConfig {
+	return neuron.RunnerConfig{
+		Generations: 10,
+		Rounds:      3,
 
-func DefaultEnvConfig() EnvironmentConfig {
-	return EnvironmentConfig{
-		Pconf: neuron.PlaygroundConfig{
-			// NumInputs:  2,
-			// NumOutputs: 1,
+		PConf: neuron.PlaygroundConfig{
+			NumInputs:  1,
+			NumOutputs: 2,
 
-			NumVariants: 100,
-			Generations: 10,
+			NumVariants: 200,
 
 			Mconf: neuron.MutationConfig{
-				NeuronExpansion:  0.20,
-				SynapseExpansion: 0.30,
+				NeuronExpansion:  0.2,
+				SynapseExpansion: 0.3,
 
 				AddNeuron:  0.2,
 				AddSynapse: 0.3,
 
-				ChangeOp:  0.5,
+				ChangeOp:  0.1,
 				SetSeed:   0.1,
 				UnsetSeed: 0.1,
 			},
@@ -34,79 +32,83 @@ func DefaultEnvConfig() EnvironmentConfig {
 			Econf: neuron.EvolutionConfig{
 				Parents:           3,
 				BottomTierPercent: 0.25,
-				DistanceThreshold: 0.25,
-			},
-
-			Gconf: neuron.GenerationConfig{
-				Rounds: 5,
-				// Could try to return early when there are no pending signals.
-				MaxSteps: 30,
-
-				// InputsFn
-				// FitnessFn
+				DistanceThreshold: 0.3,
 			},
 		},
 	}
 }
 
-/*
-func SortList(econf EnvironmentConfig) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+type DayTrader struct {
+	minute      int
+	stockValues []neuron.SignalType
+	rng         *rand.Rand
 
-	econf.Pconf.NumInputs = 5
-	econf.Pconf.NumOutputs = 5
+	money       int
+	sharesOwned int
+}
 
-	econf.Pconf.Gconf.InputsFn = func(action int) []neuron.SignalType {
-		if action >= 1 {
-			return make([]neuron.SignalType, 0)
-		}
-		return make([]neuron.SignalType)
+func (d *DayTrader) CurrentState() []neuron.SignalType {
+	newVal := int(d.stockValues[d.minute-1]) + (5 - d.rng.Intn(11))
+	if newVal <= 0 {
+		newVal = 1
+	}
+	if newVal >= int(neuron.MaxSignal()) {
+		newVal = int(neuron.MaxSignal())
+	}
+	d.stockValues[d.minute] = neuron.SignalType(newVal)
+	return []neuron.SignalType{d.stockValues[d.minute]}
+}
+
+func (d *DayTrader) Update(signals []neuron.SignalType) {
+	currentStockPrice := int(d.stockValues[d.minute])
+	d.minute++
+
+	if len(signals) != 2 {
+		return
 	}
 
-}
-*/
-
-func DayTrader(econf EnvironmentConfig) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	tradingWindowMinutes := 390
-	stockValues := make([]neuron.SignalType, tradingWindowMinutes)
-	stockValues[0] = neuron.MaxSignal() / 2
-
-	minute := 1
-	add := false
-	for {
-		add = rng.Float32() < 0.50
-		length := rng.Intn(10) + 1
-
-		for i := 0; i < length; i++ {
-			if minute == tradingWindowMinutes {
-				break
-			}
-			minute++
-
-			changeVal := neuron.SignalType(rng.Intn(3) + 1)
-			if add {
-				stockValues[minute] = stockValues[minute-1] + changeVal
-			} else {
-				stockValues[minute] = stockValues[minute-1] - changeVal
-			}
-		}
-
-		if minute >= tradingWindowMinutes {
+	sharesToBuy := int(signals[0])
+	moneyToSpend := 0
+	for i := 0; i < sharesToBuy; i++ {
+		if d.money-currentStockPrice < moneyToSpend {
 			break
 		}
+		moneyToSpend += currentStockPrice
 	}
+	sharesBought := moneyToSpend / currentStockPrice
+	d.money -= moneyToSpend
+	d.sharesOwned += sharesBought
 
-	econf.Pconf.Gconf.InputsFn = func(action int) []neuron.SignalType {
-		inputs := make([]neuron.SignalType, 0)
-		if action <= tradingWindowMinutes {
-			inputs = append(inputs, stockValues[action])
+	sharesToSell := int(signals[1])
+	sharesSold := sharesToSell
+	if sharesSold >= d.sharesOwned {
+		sharesSold = d.sharesOwned
+	}
+	d.money += sharesSold * currentStockPrice
+	d.sharesOwned -= sharesSold
+}
+
+func (d *DayTrader) IsOver() bool {
+	return d.minute >= 250
+}
+
+func (d *DayTrader) Fitness() neuron.ScoreType {
+	return neuron.ScoreType(d.money)
+}
+
+func StockSimulation() {
+	config := DefaultRunnerConfig()
+	config.NewGameFn = func() neuron.Game {
+		d := &DayTrader{
+			minute:      1,
+			stockValues: make([]neuron.SignalType, 250),
+			rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
+			money:       1000,
+			sharesOwned: 0,
 		}
-		return inputs
+		d.stockValues[0] = neuron.MaxSignal() / 2
+		return d
 	}
-
-	play := neuron.NewPlayground(econf.Pconf)
-	play.InitDNA()
-	play.SimulatePlayground()
+	runner := neuron.NewRunner(config)
+	runner.Run()
 }

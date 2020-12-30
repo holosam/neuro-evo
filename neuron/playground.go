@@ -36,7 +36,6 @@ type PlaygroundConfig struct {
 
 	// Running the playground
 	NumVariants int
-	Generations int
 
 	// Nested configs
 	Econf EvolutionConfig
@@ -102,6 +101,7 @@ func (p *Playground) Evolve(scores []BrainScore) {
 	p.shiftConglomerate()
 
 	speciesOffspring := p.speciation(scores)
+	// fmt.Printf("species offspring: %v\n", speciesOffspring)
 
 	newCodes := make(map[IDType]*DNA, p.config.NumVariants)
 	currentMaxID := 0
@@ -142,6 +142,8 @@ func (p *Playground) Evolve(scores []BrainScore) {
 
 // Break DNA into species based on the distance between their structures.
 func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
+	// fmt.Printf("Beginning speciation with scores %+v\n", scores)
+
 	// Figure out which species this genome belongs in.
 	for _, score := range scores {
 		foundSpecies := false
@@ -172,7 +174,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 
 	// Adjust the fitness score for each member.
 	for speciesID, species := range p.species {
-		// fmt.Printf("Adjusting species #%d fitness: %+v\n", speciesID, species)
+		// fmt.Printf("Adjusting species #%d (size %d) fitness: %+v\n", speciesID, species.Size(), species)
 		if species.Size() == 0 {
 			delete(p.species, speciesID)
 			continue
@@ -225,7 +227,7 @@ func (p *Playground) partitionOffspring() map[IDType]int {
 		offspring := (float64(species.fitness) * baseValue) + correction
 		offspringPerSpecies[speciesID] = int(math.Round(offspring))
 		correction = offspring - float64(offspringPerSpecies[speciesID])
-		fmt.Printf("Species %d %+v gets %d offspring\n", speciesID, species, offspringPerSpecies[speciesID])
+		// fmt.Printf("Species %d %+v gets %d offspring\n", speciesID, species, offspringPerSpecies[speciesID])
 	}
 
 	return offspringPerSpecies

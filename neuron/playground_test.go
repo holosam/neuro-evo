@@ -52,7 +52,6 @@ func createTestPlayConfig() PlaygroundConfig {
 		NumOutputs: 1,
 
 		NumVariants: 10,
-		Generations: 3,
 
 		Mconf: MutationConfig{
 			// Guaranteed at least 1 addition regardless of these values.

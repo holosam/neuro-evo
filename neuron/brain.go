@@ -303,7 +303,7 @@ func (b *Brain) Fire(inputs []SignalType) []SignalType {
 	for !b.stepFunction() {
 		step++
 		if step >= 200 {
-			fmt.Printf("Step hit 200, breaking. \n")
+			// fmt.Printf("Step hit 200, breaking. \n")
 			return make([]SignalType, 0)
 		}
 	}

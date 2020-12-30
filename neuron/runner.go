@@ -1,5 +1,7 @@
 package neuron
 
+import "fmt"
+
 type ScoreType int64
 
 // Game defines the methods needed to simulate a game.
@@ -51,6 +53,7 @@ func NewRunner(config RunnerConfig) *Runner {
 func (r *Runner) Run() {
 	r.play.InitDNA()
 	for gen := 0; gen < r.config.Generations; gen++ {
+		fmt.Printf("Generation #%d\n", gen)
 		r.runGeneration()
 	}
 }
