@@ -155,7 +155,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 				nextSpeciesID = speciesID + 1
 			}
 
-			if dnaDistance(p.codes[score.id], species.rep) > p.config.Econf.DistanceThreshold {
+			if p.dnaDistance(p.codes[score.id], species.rep) > p.config.Econf.DistanceThreshold {
 				continue
 			}
 			foundSpecies = true

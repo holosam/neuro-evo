@@ -8,7 +8,7 @@ import (
 
 func DefaultRunnerConfig() neuron.RunnerConfig {
 	return neuron.RunnerConfig{
-		Generations: 10,
+		Generations: 100,
 		Rounds:      3,
 
 		PConf: neuron.PlaygroundConfig{
@@ -32,7 +32,7 @@ func DefaultRunnerConfig() neuron.RunnerConfig {
 			Econf: neuron.EvolutionConfig{
 				Parents:                 3,
 				BottomTierPercent:       0.25,
-				DistanceThreshold:       0.35,
+				DistanceThreshold:       0.30,
 				DistanceEdgeFactor:      0.8,
 				DistanceOperationFactor: 0.2,
 			},
@@ -66,6 +66,9 @@ func (d *DayTrader) Update(signals []neuron.SignalType) {
 	d.minute++
 
 	if len(signals) != 2 {
+		// Invalid output, make sure this isn't selected for.
+		d.money = 0
+		d.sharesOwned = 0
 		return
 	}
 

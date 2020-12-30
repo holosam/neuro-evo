@@ -175,7 +175,7 @@ func TestDNADistance(t *testing.T) {
 	// non matching operations = 4 - 3 = 1
 	want += 0.2 * float32(1) / float32(4)
 
-	got := dnaDistance(a, b)
+	got := p.dnaDistance(a, b)
 
 	// Correct for a potential inexact floating point result.
 	difference := math.Abs(float64(want) - float64(got))
