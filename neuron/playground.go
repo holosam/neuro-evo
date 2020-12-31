@@ -1,7 +1,6 @@
 package neuron
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -127,8 +126,8 @@ func (p *Playground) Evolve(scores []BrainScore) {
 			continue
 		}
 
-		fmt.Printf("Species %d (size %d) has fitness %d, represented by \n%s\n",
-			speciesID, species.Size(), species.fitness, species.rep.PrettyPrint())
+		// fmt.Printf("Species %d (size %d) has fitness %d, represented by \n%s\n",
+		// 	speciesID, species.Size(), species.fitness, species.rep.PrettyPrint())
 
 		// Include one DNA from this generation to represent the species for the
 		// next gen.

@@ -15,7 +15,7 @@ func DefaultRunnerConfig() neuron.RunnerConfig {
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 200,
+			NumVariants: 500,
 
 			Mconf: neuron.MutationConfig{
 				NeuronExpansion:  0.2,
@@ -32,7 +32,7 @@ func DefaultRunnerConfig() neuron.RunnerConfig {
 			Econf: neuron.EvolutionConfig{
 				Parents:                 3,
 				BottomTierPercent:       0.25,
-				DistanceThreshold:       0.30,
+				DistanceThreshold:       0.37,
 				DistanceEdgeFactor:      0.8,
 				DistanceOperationFactor: 0.2,
 			},
