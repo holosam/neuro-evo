@@ -8,18 +8,18 @@ import (
 
 func DefaultRunnerConfig() neuron.RunnerConfig {
 	return neuron.RunnerConfig{
-		Generations: 100,
+		Generations: 10,
 		Rounds:      3,
 
 		PConf: neuron.PlaygroundConfig{
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 500,
+			NumVariants: 10,
 
 			Mconf: neuron.MutationConfig{
 				NeuronExpansion:  0.2,
-				SynapseExpansion: 0.3,
+				SynapseExpansion: 0.1,
 
 				AddNeuron:  0.2,
 				AddSynapse: 0.3,
@@ -67,7 +67,10 @@ func (d *DayTrader) Update(signals []neuron.SignalType) {
 
 	if len(signals) != 2 {
 		// Invalid output, make sure this isn't selected for.
-		d.money = 0
+		// If the entire generation's fitness sums to 0, then the species offspring
+		// map will get a NaN and break. So min fitness should be >=10 (because
+		// it's divided by species.Size())
+		d.money = 100
 		d.sharesOwned = 0
 		return
 	}

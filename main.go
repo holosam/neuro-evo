@@ -18,6 +18,10 @@ To deploy:
 	$ nohup ./evolve > out.txt &  ()
 */
 
+// Current tasks:
+// 4) Find out why generations go from taking 1 minute to 30 minutes
+// Optional) Give droplet more CPU before running again
+
 func main() {
 	env.StockSimulation()
 }

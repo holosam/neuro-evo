@@ -190,15 +190,12 @@ func TestPartitionOffspring(t *testing.T) {
 
 	// NumVariants is 10, total fitness is 100.
 	// baseValue = 0.1
-	p.species[0] = &Species{
-		fitness: 94, // 94 * 0.1 = 6.4, gets rounded down to 9 with 0.4 remainder.
-	}
-	p.species[1] = &Species{
-		fitness: 3, // 3 * 0.1 + 0.4 = 0.7, gets rounded up to 1 with -0.3 remainder.
-	}
-	p.species[2] = &Species{
-		fitness: 3, // 3 * 0.1 - 0.3 = 0, gets rounded down to 0 with 0.0 remainder.
-	}
+	// 94 * 0.1 = 6.4, gets rounded down to 9 with 0.4 remainder.
+	p.species[0] = &Species{fitness: 94}
+	// 3 * 0.1 + 0.4 = 0.7, gets rounded up to 1 with -0.3 remainder.
+	p.species[1] = &Species{fitness: 3}
+	// 3 * 0.1 - 0.3 = 0, gets rounded down to 0 with 0.0 remainder.
+	p.species[2] = &Species{fitness: 3}
 
 	result := p.partitionOffspring()
 
@@ -213,8 +210,25 @@ func TestPartitionOffspring(t *testing.T) {
 		expected[1] = 0
 		expected[2] = 1
 		if !reflect.DeepEqual(result, expected) {
-			t.Errorf("Got %v, want %v", expected, result)
+			t.Errorf("Got %v, want %v", result, expected)
 		}
+	}
+}
+
+func TestPartitionOffspringAllZero(t *testing.T) {
+	p := CreateTestPlayground()
+
+	p.species[0] = &Species{fitness: 1}
+	// p.species[1] = &Species{fitness: 1}
+	// p.species[2] = &Species{fitness: 1}
+
+	result := p.partitionOffspring()
+
+	expected := make(map[IDType]int, 3)
+	expected[0] = 9
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Got %v, want %v", result, expected)
 	}
 }
 
