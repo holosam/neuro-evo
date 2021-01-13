@@ -6,33 +6,33 @@ import (
 	"time"
 )
 
-func DefaultRunnerConfig() neuron.RunnerConfig {
+func DefaultStockConfig() neuron.RunnerConfig {
 	return neuron.RunnerConfig{
-		Generations: 10,
-		Rounds:      3,
+		Generations: 300,
+		Rounds:      5,
 
 		PConf: neuron.PlaygroundConfig{
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 10,
+			NumVariants: 1000,
 
 			Mconf: neuron.MutationConfig{
-				NeuronExpansion:  0.2,
+				NeuronExpansion:  0.1,
 				SynapseExpansion: 0.1,
 
-				AddNeuron:  0.2,
-				AddSynapse: 0.3,
+				AddNeuron:  0.1,
+				AddSynapse: 0.2,
 
-				ChangeOp:  0.1,
-				SetSeed:   0.1,
-				UnsetSeed: 0.1,
+				ChangeOp:  0.3,
+				SetSeed:   0.3,
+				UnsetSeed: 0.3,
 			},
 
 			Econf: neuron.EvolutionConfig{
 				Parents:                 3,
 				BottomTierPercent:       0.25,
-				DistanceThreshold:       0.37,
+				DistanceThreshold:       0.5,
 				DistanceEdgeFactor:      0.8,
 				DistanceOperationFactor: 0.2,
 			},
@@ -105,7 +105,7 @@ func (d *DayTrader) Fitness() neuron.ScoreType {
 }
 
 func StockSimulation() {
-	config := DefaultRunnerConfig()
+	config := DefaultStockConfig()
 	config.NewGameFn = func() neuron.Game {
 		d := &DayTrader{
 			minute:      1,

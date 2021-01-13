@@ -150,6 +150,23 @@ func (s *SynapseTracker) FindID(src, dst IDType) (IDType, error) {
 	return 0, fmt.Errorf("non-existent synapse src=%d,dst=%d", src, dst)
 }
 
+func (s *SynapseTracker) DeepCopy() *SynapseTracker {
+	dst := NewSynapseTracker()
+
+	for synID, syn := range s.idMap {
+		dst.idMap[synID] = Synapse{src: syn.src, dst: syn.dst}
+	}
+
+	for neuronID, synIDs := range s.srcMap {
+		for synID := range synIDs {
+			dst.srcMap[neuronID][synID] = member
+		}
+	}
+
+	dst.nextID = s.nextID
+	return dst
+}
+
 type Conglomerate struct {
 	NeuronIDs map[NeuronType]*IndexedIDs
 	Synapses  *SynapseTracker
@@ -236,6 +253,18 @@ func (d *DNA) SetSeed(id IDType, seed SignalType) {
 
 func (d *DNA) RemoveSeed(id IDType) {
 	d.Neurons[id].RemoveSeed()
+}
+
+func (src *DNA) DeepCopy() *DNA {
+	dst := NewDNA(src.Source)
+
+	for neuronID, neuron := range src.Neurons {
+		dst.Neurons[neuronID] = neuron.Copy()
+	}
+
+	dst.Synpases = src.Synpases.DeepCopy()
+
+	return dst
 }
 
 func (d *DNA) PrettyPrint() string {

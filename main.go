@@ -19,7 +19,19 @@ To deploy:
 */
 
 // Current tasks:
-// 4) Find out why generations go from taking 1 minute to 30 minutes
+// 1) Figure out a way to do NeuronExpansion and SynapseExpansion
+//    without insane exponential growth (logarathmic growth?)
+//    For example: generation 50 / 25 = 2 new neurons
+// 2) The champion of each species with more than 5 variants gets copied to
+//    the next generation unchanged
+// 3) Observation: species are churning a lot, but it appears that an early
+//    variant in generation #13 had the best score. Doesn't always need to
+//    grow by a lot (or at all)
+//  - Generally need to find a way to decide when there's been "enough"
+//    evolution and the simulation can end with a winner.
+// 4) The scores are directly affecting totalFitness so they must be positive
+//    numbers. Should be more resiliant like base everything off the minumum
+//    fitness and make that = 1
 // Optional) Give droplet more CPU before running again
 
 func main() {

@@ -14,8 +14,8 @@ func MaxSignal() SignalType {
 	return math.MaxUint8
 }
 
-// OperatorType enum for different commutative operations that neurons
-// can perform on their inputs.
+// OperatorType enum for different operations that neurons can perform on
+// signal values. The operations must be associative and commutative.
 type OperatorType int
 
 const (

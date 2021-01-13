@@ -105,6 +105,7 @@ func (p *Playground) Evolve(scores []BrainScore) {
 	fmt.Printf("Evolution beginning (at %v)\n", time.Now())
 	p.shiftConglomerate()
 
+	fmt.Printf("Beginning speciation at %v\n", time.Now())
 	speciesOffspring := p.speciation(scores)
 	fmt.Printf("Species offspring (at %v): %v\n", time.Now(), speciesOffspring)
 
@@ -121,6 +122,7 @@ func (p *Playground) Evolve(scores []BrainScore) {
 
 		currentMaxID = len(newCodes)
 	}
+	fmt.Printf("Done with reproduction (at %v)\n", time.Now())
 
 	for speciesID, species := range p.species {
 		if species.Size() == 0 {
@@ -146,8 +148,6 @@ func (p *Playground) Evolve(scores []BrainScore) {
 
 // Break DNA into species based on the distance between their structures.
 func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
-	fmt.Printf("Beginning speciation at %v with scores %+v\n", time.Now(), scores)
-
 	// Figure out which species this genome belongs in.
 	for _, score := range scores {
 		foundSpecies := false
@@ -178,7 +178,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 
 	// Adjust the fitness score for each member.
 	for speciesID, species := range p.species {
-		fmt.Printf("Adjusting species #%d (size %d) fitness: %+v\n", speciesID, species.Size(), species)
+		// fmt.Printf("Adjusting species #%d (size %d) fitness: %+v\n", speciesID, species.Size(), species)
 		if species.Size() == 0 {
 			delete(p.species, speciesID)
 			continue
@@ -187,7 +187,7 @@ func (p *Playground) speciation(scores []BrainScore) map[IDType]int {
 			adjustedFitness := score.score / ScoreType(species.Size())
 			species.scores[index].score = adjustedFitness
 			species.fitness += adjustedFitness
-			fmt.Printf("Adjusted fitness for score %+v is %d\n", score, adjustedFitness)
+			// fmt.Printf("Adjusted fitness for score %+v is %d\n", score, adjustedFitness)
 		}
 	}
 
@@ -263,7 +263,7 @@ func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType
 	sort.Slice(species.scores, func(i, j int) bool {
 		return species.scores[i].score > species.scores[j].score
 	})
-	fmt.Printf("Beginning reproduction (at %v): %+v\n", time.Now(), species)
+	// fmt.Printf("Beginning reproduction: %+v\n", species)
 
 	dieOff := percentageOfWithMin1(species.Size(), p.config.Econf.BottomTierPercent)
 	species.scores = species.scores[:species.Size()-dieOff]
@@ -392,7 +392,8 @@ func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, c
 
 func (p *Playground) shiftConglomerate() {
 	// Increase the number of neurons by the expansion percentage.
-	neuronsToAdd := percentageOfWithMin1(p.source.NeuronIDs[INTER].Length(), p.config.Mconf.NeuronExpansion)
+	// neuronsToAdd := percentageOfWithMin1(p.source.NeuronIDs[INTER].Length(), p.config.Mconf.NeuronExpansion)
+	neuronsToAdd := 1
 	for i := 0; i < neuronsToAdd; i++ {
 		// Okay to add a neuron on the same synapse more than once.
 		synID := p.rnd.Intn(p.source.Synapses.nextID)
@@ -401,7 +402,8 @@ func (p *Playground) shiftConglomerate() {
 	}
 
 	// Increase the number of synapses by the expansion percentage.
-	newSynapses := percentageOfWithMin1(p.source.Synapses.nextID, p.config.Mconf.SynapseExpansion)
+	// newSynapses := percentageOfWithMin1(p.source.Synapses.nextID, p.config.Mconf.SynapseExpansion)
+	newSynapses := 4
 
 	// Repurpose newSynapses to also represent an approximate clump size, so
 	// new synapses are generally created with pretty close srcs and dsts.

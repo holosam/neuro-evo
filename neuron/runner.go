@@ -56,7 +56,7 @@ func NewRunner(config RunnerConfig) *Runner {
 func (r *Runner) Run() {
 	r.play.InitDNA()
 	for gen := 0; gen < r.config.Generations; gen++ {
-		fmt.Printf("Generation #%d, starting at %v\n", gen, time.Now())
+		fmt.Printf("\nGeneration #%d, starting at %v\n", gen, time.Now())
 		r.runGeneration()
 	}
 }
@@ -80,19 +80,19 @@ func (r *Runner) runGeneration() {
 	}
 
 	// ------------- just for printing
-	// maxResult := BrainScore{
-	// 	id:    -1,
-	// 	score: -1,
-	// }
-	// for _, result := range results {
-	// 	if result.score > maxResult.score {
-	// 		maxResult = result
-	// 	}
-	// }
-	// bestDNA := r.play.codes[maxResult.id]
+	maxResult := BrainScore{
+		id:    -1,
+		score: -1,
+	}
+	for _, result := range results {
+		if result.score > maxResult.score {
+			maxResult = result
+		}
+	}
+	bestDNA := r.play.codes[maxResult.id]
 	// go r.gameSimulation(maxResult.id, resChan)
 	// result := <-resChan
-	// fmt.Printf("Winner of generation:\n%sEnded with %d score\n\n", bestDNA.PrettyPrint(), result.score)
+	fmt.Printf("Winner of generation:\n%sEnded with %d score\n\n", bestDNA.PrettyPrint(), maxResult.score)
 	// ------------- just for printing
 
 	r.play.Evolve(results)
