@@ -23,7 +23,7 @@ To deploy:
 //    without insane exponential growth (logarathmic growth?)
 //    For example: generation 50 / 25 = 2 new neurons
 // 2) The champion of each species with more than 5 variants gets copied to
-//    the next generation unchanged
+//    the next generation unchanged (from NEAT paper)
 // 3) Observation: species are churning a lot, but it appears that an early
 //    variant in generation #13 had the best score. Doesn't always need to
 //    grow by a lot (or at all)
