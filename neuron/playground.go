@@ -400,7 +400,7 @@ func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, c
 func (p *Playground) shiftConglomerate() {
 	// Increase the number of neurons by the expansion percentage.
 	// neuronsToAdd := percentageOfWithMin1(p.source.NeuronIDs[INTER].Length(), p.config.Mconf.NeuronExpansion)
-	neuronsToAdd := 1
+	neuronsToAdd := int(math.Ceil(math.Log10(float64(p.source.NeuronIDs[INTER].Length() + 2))))
 	for i := 0; i < neuronsToAdd; i++ {
 		// Okay to add a neuron on the same synapse more than once.
 		synID := p.rnd.Intn(p.source.Synapses.nextID)
@@ -410,7 +410,7 @@ func (p *Playground) shiftConglomerate() {
 
 	// Increase the number of synapses by the expansion percentage.
 	// newSynapses := percentageOfWithMin1(p.source.Synapses.nextID, p.config.Mconf.SynapseExpansion)
-	newSynapses := 4
+	newSynapses := int(math.Ceil(math.Log10(float64(p.source.Synapses.nextID + 10))))
 
 	// Repurpose newSynapses to also represent an approximate clump size, so
 	// new synapses are generally created with pretty close srcs and dsts.

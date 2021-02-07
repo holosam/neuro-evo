@@ -306,55 +306,92 @@ func (d *DNA) PrettyPrint() string {
 	return sb.String()
 }
 
+const NullRune = 0
+
+type brainOutput struct {
+	signalString []SignalType
+	isTerminated bool
+}
+
 // Brain docs
 type Brain struct {
 	dna            *DNA
 	pendingSignals map[IDType][]SignalType
 	// outputSignals is a map instead of slice to tell which motor neurons have
 	// received and set an output.
-	outputSignals map[IDType]SignalType
+	outputSignals []brainOutput
 }
 
 func Flourish(dna *DNA) *Brain {
 	return &Brain{
 		dna:            dna,
 		pendingSignals: make(map[IDType][]SignalType, len(dna.Neurons)),
-		outputSignals:  make(map[IDType]SignalType, dna.Source.NeuronIDs[MOTOR].Length()),
+		outputSignals:  make([]brainOutput, dna.Source.NeuronIDs[MOTOR].Length()),
 	}
 }
 
-func (b *Brain) Fire(inputs []SignalType) []SignalType {
-	for index, input := range inputs {
-		// Send the signal to the vision ID at the signal's index.
-		b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(index), input)
-	}
+// [][]SignalType can come from a single proto message in the future.
+func (b *Brain) Fire(inputs [][]SignalType) [][]SignalType {
+	inputStringIndex := 0
 
-	step := 0
-	for !b.stepFunction() {
-		step++
-		if step >= 200 {
-			// fmt.Printf("Step hit 200, breaking. \n")
-			return make([]SignalType, 0)
+	// Cut off firing once it's very likely the output won't be generated.
+	for step := 0; step < 100; step++ {
+		// If there are any input signals left, add them to pendingSignals.
+		for visionIndex, inputString := range inputs {
+			if inputStringIndex > len(inputString) {
+				continue
+			}
+
+			var inputSignal SignalType
+			if inputStringIndex < len(inputString) {
+				inputSignal = inputString[inputStringIndex]
+			} else if inputStringIndex == len(inputString) {
+				// Send a null termination to this vision neuron, signalling that no
+				// more input will be coming on this action.
+				inputSignal = NullRune
+			}
+			b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(visionIndex), inputSignal)
+		}
+		inputStringIndex++
+
+		b.stepFunction()
+
+		// Check if all of the output is ready to be returned.
+		allTerminated := true
+		for _, brainOutput := range b.outputSignals {
+			if !brainOutput.isTerminated {
+				allTerminated = false
+			}
+		}
+		if allTerminated {
+			break
 		}
 	}
 
-	output := make([]SignalType, len(b.outputSignals))
-	for id, sig := range b.outputSignals {
-		output[b.dna.Source.NeuronIDs[MOTOR].GetIndex(id)] = sig
+	outputs := make([][]SignalType, len(b.outputSignals))
+	for motorIndex, brainOutput := range b.outputSignals {
+		// Only terminated outputs are returned.
+		if brainOutput.isTerminated {
+			outputs[motorIndex] = make([]SignalType, len(brainOutput.signalString))
+			copy(outputs[motorIndex], brainOutput.signalString)
+		} else {
+			outputs[motorIndex] = make([]SignalType, 0)
+		}
 	}
+
 	// Clear the output after it's used to make way for a new action.
-	b.outputSignals = make(map[IDType]SignalType, b.dna.Source.NeuronIDs[MOTOR].Length())
-	return output
+	b.outputSignals = make([]brainOutput, b.dna.Source.NeuronIDs[MOTOR].Length())
+
+	return outputs
 }
 
-func (b *Brain) stepFunction() bool {
+func (b *Brain) stepFunction() {
 	// Create a separate map that will be merged with pendingSignals after all
 	// firing is done. This avoids a race condition where a synapse would add
 	// a pending signal to the map and then be cleared later if that neuron fires
 	// too.
 	nextPending := make(map[IDType][]SignalType, len(b.dna.Neurons))
 
-	done := false
 	for neuronID, inputs := range b.pendingSignals {
 		numInputs := len(inputs)
 		if b.dna.Neurons[neuronID].hasSeed {
@@ -375,14 +412,17 @@ func (b *Brain) stepFunction() bool {
 		delete(b.pendingSignals, neuronID)
 
 		if b.dna.Source.NeuronIDs[MOTOR].HasID(neuronID) {
-			// Add the signal to the outputSignals only if it's the first time this
-			// motor neuron has fired.
-			if _, ok := b.outputSignals[neuronID]; !ok {
-				b.outputSignals[neuronID] = output
+			motorIndex := b.dna.Source.NeuronIDs[MOTOR].GetIndex(neuronID)
+			if !b.outputSignals[motorIndex].isTerminated {
+				if output == NullRune {
+					// A value of 0 is the termination character to cease listening for
+					// output on this neuron.
+					b.outputSignals[motorIndex].isTerminated = true
+				} else {
+					b.outputSignals[motorIndex].signalString = append(b.outputSignals[motorIndex].signalString, output)
+				}
 			}
-			// fmt.Printf("output signals: %v\n", b.outputSignals)
-			// Done is true if all motor neurons have an output.
-			done = len(b.outputSignals) == b.dna.Source.NeuronIDs[MOTOR].Length()
+			// fmt.Printf("output signals: %v+\n", b.outputSignals)
 		}
 
 		// Queue up signal for all downstream neurons.
@@ -398,8 +438,6 @@ func (b *Brain) stepFunction() bool {
 			b.addPendingSignal(neuronID, sig)
 		}
 	}
-
-	return done
 }
 
 func (b *Brain) addPendingSignal(neuronID IDType, sig SignalType) {

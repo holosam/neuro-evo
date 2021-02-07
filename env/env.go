@@ -3,20 +3,21 @@ package env
 import (
 	"hackathon/sam/evolve/neuron"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 )
 
 func DefaultStockConfig() neuron.RunnerConfig {
 	return neuron.RunnerConfig{
-		Generations: 1000,
-		Rounds:      10,
+		Generations: 500,
+		Rounds:      20,
 
 		PConf: neuron.PlaygroundConfig{
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 3000,
+			NumVariants: 1000,
 
 			Mconf: neuron.MutationConfig{
 				NeuronExpansion:  0.1,
@@ -41,6 +42,7 @@ func DefaultStockConfig() neuron.RunnerConfig {
 	}
 }
 
+/*
 type DayTrader struct {
 	minute      int
 	stockValues []neuron.SignalType
@@ -50,7 +52,7 @@ type DayTrader struct {
 	sharesOwned int
 }
 
-func (d *DayTrader) CurrentState() []neuron.SignalType {
+func (d *DayTrader) CurrentState() [][]neuron.SignalType {
 	newVal := int(d.stockValues[d.minute-1]) + (5 - d.rng.Intn(11))
 	if newVal <= 0 {
 		newVal = 1
@@ -59,10 +61,10 @@ func (d *DayTrader) CurrentState() []neuron.SignalType {
 		newVal = int(neuron.MaxSignal())
 	}
 	d.stockValues[d.minute] = neuron.SignalType(newVal)
-	return []neuron.SignalType{d.stockValues[d.minute]}
+	return [][]neuron.SignalType{{d.stockValues[d.minute]}}
 }
 
-func (d *DayTrader) Update(signals []neuron.SignalType) {
+func (d *DayTrader) Update(signals [][]neuron.SignalType) {
 	currentStockPrice := int(d.stockValues[d.minute])
 	d.minute++
 
@@ -121,6 +123,7 @@ func StockSimulation() {
 	runner := neuron.NewRunner(config)
 	runner.Run()
 }
+*/
 
 type RomanNumeral struct {
 	input  int
@@ -128,13 +131,22 @@ type RomanNumeral struct {
 	isOver bool
 }
 
-func (r *RomanNumeral) CurrentState() []neuron.SignalType {
+func (r *RomanNumeral) CurrentState() [][]neuron.SignalType {
 	r.isOver = true
-	return []neuron.SignalType{neuron.SignalType(r.input >> 8), neuron.SignalType(r.input % 256)}
+	runes := []rune(strconv.Itoa(r.input))
+	input := make([]neuron.SignalType, len(runes))
+	for i, r := range runes {
+		input[i] = neuron.SignalType(r)
+	}
+	return [][]neuron.SignalType{input}
 }
 
-func (r *RomanNumeral) Update(signals []neuron.SignalType) {
-	for _, sig := range signals {
+func (r *RomanNumeral) Update(signals [][]neuron.SignalType) {
+	if len(signals) != 1 {
+		return
+	}
+
+	for _, sig := range signals[0] {
 		if sig > 0 {
 			r.output = append(r.output, rune(sig))
 		}
@@ -195,8 +207,8 @@ func RomanNumeralConverter() {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	config := DefaultStockConfig()
-	config.PConf.NumInputs = 2
-	config.PConf.NumOutputs = 15
+	config.PConf.NumInputs = 1
+	config.PConf.NumOutputs = 1
 	config.NewGameFn = func() neuron.Game {
 		r := &RomanNumeral{
 			input:  rng.Intn(3999),

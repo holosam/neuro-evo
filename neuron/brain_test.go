@@ -202,10 +202,7 @@ func TestBrainStep(t *testing.T) {
 		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 
-	isDone := b.stepFunction()
-	if want, got := false, isDone; want != got {
-		t.Errorf("Want %v, got %v", want, got)
-	}
+	b.stepFunction()
 
 	delete(wantMap, 0)
 	wantMap[1] = []SignalType{3}
@@ -222,9 +219,13 @@ func TestBrainStep(t *testing.T) {
 
 func TestBrainFire(t *testing.T) {
 	b := Flourish(SimpleTestDNA())
-	if got, want := b.Fire([]SignalType{1, 2}), []SignalType{3}; !reflect.DeepEqual(got, want) {
+	if got, want := b.Fire([][]SignalType{{1}, {2}}), [][]SignalType{{3}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
+
+	fmt.Printf("pending signals: %+v\n", b.pendingSignals)
+
+	t.Errorf("error for logs")
 }
 
 // Create a circular brain that won't ever output to test if Fire will
@@ -257,8 +258,8 @@ func TestCircularBrainFiring(t *testing.T) {
 	fmt.Printf("Circular brain: %s\n", d.PrettyPrint())
 
 	b := Flourish(d)
-	got := b.Fire([]SignalType{1, 2})
-	if want := []SignalType{}; !reflect.DeepEqual(got, want) {
+	got := b.Fire([][]SignalType{{1}, {2}})
+	if want := [][]SignalType{{}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }

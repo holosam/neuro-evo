@@ -2,10 +2,10 @@ package env
 
 import (
 	"hackathon/sam/evolve/neuron"
-	"math"
 	"testing"
 )
 
+/*
 func TestUpdateBoughtSold(t *testing.T) {
 	d := &DayTrader{
 		minute:      1,
@@ -52,6 +52,7 @@ func TestDayTrader(t *testing.T) {
 	StockSimulation()
 	t.Errorf("always error to read logs")
 }
+*/
 
 func TestRomanNumeralConversion(t *testing.T) {
 	testcases := []struct {
@@ -70,9 +71,6 @@ func TestRomanNumeralConversion(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		r := RomanNumeral{
-			input: testcase.input,
-		}
 		if got, want := convert(testcase.input), testcase.output; got != want {
 			t.Errorf("Got %v, want %v", got, want)
 		}
@@ -84,7 +82,7 @@ func TestRomanNumeralFitness(t *testing.T) {
 		input:  246,
 		output: []rune{'C', 'C', 'X', 'M', 'T'},
 	}
-	expected := neuron.ScoreType(math.MaxInt32 - (1 + 4 + 65536))
+	expected := neuron.ScoreType(-(1 + 4 + 65536))
 
 	if got := r.Fitness(); got != expected {
 		t.Errorf("Got %v, want %v", got, expected)

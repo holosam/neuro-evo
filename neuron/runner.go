@@ -12,10 +12,10 @@ type ScoreType int64
 type Game interface {
 	// CurrentState is the state of the game represented by a series of signals.
 	// In the future this should return a proto.Message
-	CurrentState() []SignalType
+	CurrentState() [][]SignalType
 
 	// Update changes the game state based on a series of moves.
-	Update(signals []SignalType)
+	Update(signals [][]SignalType)
 
 	IsOver() bool
 
@@ -80,7 +80,7 @@ func (r *Runner) runGeneration() {
 		}
 	}
 
-	// ------------- just for printing
+	// <just for printing>
 	maxResult := BrainScore{
 		id:    -1,
 		score: -math.MaxInt32,
@@ -100,7 +100,7 @@ func (r *Runner) runGeneration() {
 		fmt.Printf("We have a winner!")
 		return
 	}
-	// ------------- just for printing
+	// </just for printing>
 
 	r.play.Evolve(results)
 }

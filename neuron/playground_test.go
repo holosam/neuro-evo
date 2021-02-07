@@ -289,9 +289,9 @@ func TestShiftConglomerate(t *testing.T) {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 
-	// The nextID will be +1 because of the new inter neuron, then +4 because of
-	// the new synapse being added.
-	if got, want := p.source.Synapses.nextID, nextIDBefore+1+4; got != want {
+	// The nextID will be +2 because of the new inter neuron, then +2 because of
+	// the two new synapses being added.
+	if got, want := p.source.Synapses.nextID, nextIDBefore+2+2; got != want {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 }
