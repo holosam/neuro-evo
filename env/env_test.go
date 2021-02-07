@@ -54,6 +54,39 @@ func TestDayTrader(t *testing.T) {
 }
 */
 
+func TestAdderFitness(t *testing.T) {
+	a := &Adder{
+		inputs: [][]neuron.SignalType{{3, 4}, {5, 6}}, // sum: 18
+	}
+	a.CurrentState()
+
+	a.Update([][]neuron.SignalType{})
+	if got, want := a.output, neuron.SignalType(0); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+	if got, want := a.Fitness(), neuron.ScoreType(0); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	a.Update([][]neuron.SignalType{{48, 2}})
+	if got, want := a.output, neuron.SignalType(48); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+	if got, want := a.Fitness(), neuron.ScoreType(256*256-30*30); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	a.Update([][]neuron.SignalType{{18}})
+	if got, want := a.Fitness(), neuron.ScoreType(256*256); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+}
+
+func TestAdder(t *testing.T) {
+	RunAdder()
+	t.Errorf("always error to read logs")
+}
+
 func TestRomanNumeralConversion(t *testing.T) {
 	testcases := []struct {
 		input  int
@@ -78,7 +111,7 @@ func TestRomanNumeralConversion(t *testing.T) {
 }
 
 func TestRomanNumeralFitness(t *testing.T) {
-	r := RomanNumeral{
+	r := &RomanNumeral{
 		input:  246,
 		output: []rune{'C', 'C', 'X', 'M', 'T'},
 	}

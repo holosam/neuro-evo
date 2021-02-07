@@ -19,19 +19,14 @@ To deploy:
 */
 
 // Current tasks:
-// 1) Observation: species are churning a lot, but it appears that an early
-//    variant in generation #13 had the best score. Doesn't always need to
-//    grow by a lot (or at all)
-//  - Generally need to find a way to decide when there's been "enough"
-//    evolution and the simulation can end with a winner.
-// 2) The scores are directly affecting totalFitness so they must be positive
+// 1) The scores are directly affecting totalFitness so they must be positive
 //    numbers. Should be more resiliant like base everything off the minumum
 //    fitness and make that = 1
-// 3) Swarm intelligence idea: After rounds of evolution, would be cool to
+// 2) Swarm intelligence idea: After rounds of evolution, would be cool to
 //    check what the consensus answer is among all variants (each vote on a
 //    response and pick the winner). They may be smarter together that any
 //    individual.
 
 func main() {
-	env.RomanNumeralConverter()
+	env.RunAdder()
 }

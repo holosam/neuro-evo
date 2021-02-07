@@ -58,11 +58,13 @@ func (r *Runner) Run() {
 	r.play.InitDNA()
 	for gen := 0; gen < r.config.Generations; gen++ {
 		fmt.Printf("\nGeneration #%d, starting at %v\n", gen, time.Now())
-		r.runGeneration()
+		if r.runGeneration() {
+			break
+		}
 	}
 }
 
-func (r *Runner) runGeneration() {
+func (r *Runner) runGeneration() bool {
 	results := make([]BrainScore, r.play.config.NumVariants)
 
 	resChan := make(chan BrainScore)
@@ -95,14 +97,15 @@ func (r *Runner) runGeneration() {
 	// result := <-resChan
 	fmt.Printf("Winner of generation:\n%sEnded with %d score\n\n", bestDNA.PrettyPrint(), maxResult.score)
 
-	// Only for roman numerals.
-	if maxResult.score == ScoreType(0) {
+	// if maxResult.score == ScoreType(0) { // For roman numerals.
+	if int(maxResult.score) == 256*256*r.config.Rounds { // For the adder.
 		fmt.Printf("We have a winner!")
-		return
+		return true
 	}
 	// </just for printing>
 
 	r.play.Evolve(results)
+	return false
 }
 
 func (r *Runner) gameSimulation(id IDType, resChan chan BrainScore) {

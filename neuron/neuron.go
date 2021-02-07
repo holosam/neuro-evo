@@ -19,19 +19,19 @@ func MaxSignal() SignalType {
 type OperatorType int
 
 const (
-	AND OperatorType = iota
-	NAND
-	OR
-	NOR
-	XOR
-	IFF
-	ADD
-	MULTIPLY
-	GCF
-	MAX
-	MIN
-	TRUTH
-	FALSIFY
+	AND      OperatorType = iota
+	NAND                  // 1
+	OR                    // 2
+	NOR                   // 3
+	XOR                   // 4
+	IFF                   // 5
+	ADD                   // 6
+	MULTIPLY              // 7
+	GCF                   // 8
+	MAX                   // 9
+	MIN                   // 10
+	TRUTH                 // 11
+	FALSIFY               // 12
 )
 
 const NumOps = 13

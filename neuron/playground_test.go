@@ -55,10 +55,6 @@ func createTestPlayConfig() PlaygroundConfig {
 		NumVariants: 10,
 
 		Mconf: MutationConfig{
-			// Guaranteed at least 1 addition regardless of these values.
-			NeuronExpansion:  0.01,
-			SynapseExpansion: 0.01,
-
 			AddNeuron:  1.0,
 			AddSynapse: 1.0,
 
@@ -342,11 +338,6 @@ func TestMutateDNAStructure(t *testing.T) {
 		NumVariants: 1,
 
 		Mconf: MutationConfig{
-			// Will round up to 1
-			NeuronExpansion: 0.01,
-			// Ensure both synapses are added so the test is deterministic.
-			SynapseExpansion: 2.0,
-
 			AddNeuron: 1.0,
 			// Starts at 0 so the removed synapse doesn't get immediately added back.
 			AddSynapse: 0.0,
@@ -373,7 +364,7 @@ func TestMutateDNAStructure(t *testing.T) {
 	for synID := range dna.Synpases.idMap {
 		foundSyns[synID] = true
 	}
-	// The V0->M0 syn should be removed when I0 is added in between.
+	// Syn0 (V0->M0) should be removed when I0 is added in between.
 	if !reflect.DeepEqual(foundSyns, []bool{false, true, true, true}) {
 		t.Errorf("Got syns %v", foundSyns)
 	}
@@ -387,7 +378,9 @@ func TestMutateDNAStructure(t *testing.T) {
 	for synID := range dna.Synpases.idMap {
 		foundSyns[synID] = true
 	}
-	if !reflect.DeepEqual(foundSyns, []bool{true, true, true, true, true}) {
+	// It will pick up either syn0 or syn4.
+	if !reflect.DeepEqual(foundSyns, []bool{false, true, true, true, true}) &&
+		!reflect.DeepEqual(foundSyns, []bool{true, true, true, true, false}) {
 		t.Errorf("Got syns %v", foundSyns)
 	}
 }

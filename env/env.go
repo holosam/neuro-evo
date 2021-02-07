@@ -10,33 +10,30 @@ import (
 
 func DefaultStockConfig() neuron.RunnerConfig {
 	return neuron.RunnerConfig{
-		Generations: 500,
-		Rounds:      20,
+		Generations: 1000,
+		Rounds:      10,
 
 		PConf: neuron.PlaygroundConfig{
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 1000,
+			NumVariants: 2000,
 
 			Mconf: neuron.MutationConfig{
-				NeuronExpansion:  0.1,
-				SynapseExpansion: 0.1,
+				AddNeuron:  0.03,
+				AddSynapse: 0.1,
 
-				AddNeuron:  0.1,
-				AddSynapse: 0.2,
-
-				ChangeOp:  0.3,
-				SetSeed:   0.3,
-				UnsetSeed: 0.3,
+				ChangeOp:  0.5,
+				SetSeed:   0.4,
+				UnsetSeed: 0.4,
 			},
 
 			Econf: neuron.EvolutionConfig{
 				Parents:                 3,
 				BottomTierPercent:       0.25,
 				DistanceThreshold:       0.5,
-				DistanceEdgeFactor:      0.8,
-				DistanceOperationFactor: 0.2,
+				DistanceEdgeFactor:      0.7,
+				DistanceOperationFactor: 0.3,
 			},
 		},
 	}
@@ -125,6 +122,70 @@ func StockSimulation() {
 }
 */
 
+type Adder struct {
+	inputs [][]neuron.SignalType
+	answer neuron.SignalType
+	output neuron.SignalType
+	isOver bool
+}
+
+func (a *Adder) CurrentState() [][]neuron.SignalType {
+	a.isOver = true
+
+	for i := 0; i < len(a.inputs); i++ {
+		for ii := 0; ii < len(a.inputs[i]); ii++ {
+			a.answer += a.inputs[i][ii]
+		}
+	}
+
+	return a.inputs
+}
+
+func (a *Adder) Update(signals [][]neuron.SignalType) {
+	if len(signals) == 0 || len(signals[0]) == 0 {
+		a.output = 0
+		return
+	}
+	a.output = signals[0][0]
+}
+
+func (a *Adder) IsOver() bool {
+	return a.isOver
+}
+
+func (a *Adder) Fitness() neuron.ScoreType {
+	var diff int
+	if a.output == 0 {
+		diff = 256
+	} else {
+		diff = int(a.output) - int(a.answer)
+	}
+	return neuron.ScoreType((256 * 256) - (diff * diff))
+}
+
+func RunAdder() {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	config := DefaultStockConfig()
+	config.PConf.NumInputs = 2
+	config.PConf.NumOutputs = 1
+	config.NewGameFn = func() neuron.Game {
+		a := &Adder{
+			inputs: make([][]neuron.SignalType, 2),
+		}
+
+		for i := 0; i < 2; i++ {
+			for ii := 0; ii < 2; ii++ {
+				a.inputs[i] = append(a.inputs[i], neuron.SignalType(rng.Intn(63)+1))
+			}
+		}
+		return a
+	}
+
+	runner := neuron.NewRunner(config)
+	runner.Run()
+}
+
 type RomanNumeral struct {
 	input  int
 	output []rune
@@ -161,6 +222,7 @@ func (r *RomanNumeral) Fitness() neuron.ScoreType {
 	answer := []rune(convert(r.input))
 	score := 0
 
+	// This scoring function punishes longer answers more, which isn't ideal.
 	for i, char := range answer {
 		if len(r.output) > i {
 			diff := int(char - r.output[i])
@@ -210,11 +272,10 @@ func RomanNumeralConverter() {
 	config.PConf.NumInputs = 1
 	config.PConf.NumOutputs = 1
 	config.NewGameFn = func() neuron.Game {
-		r := &RomanNumeral{
-			input:  rng.Intn(3999),
+		return &RomanNumeral{
+			input:  rng.Intn(99), //3999),
 			output: make([]rune, 0),
 		}
-		return r
 	}
 
 	runner := neuron.NewRunner(config)

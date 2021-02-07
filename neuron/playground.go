@@ -22,8 +22,8 @@ type EvolutionConfig struct {
 }
 
 type MutationConfig struct {
-	NeuronExpansion  float32
-	SynapseExpansion float32
+	// NeuronExpansion  float32
+	// SynapseExpansion float32
 
 	AddNeuron  float32
 	AddSynapse float32
@@ -537,33 +537,18 @@ func (p *Playground) mutateDNAStructure(dna *DNA) {
 		}
 	}
 
-	neuronsToAdd := percentageOfWithMin1(len(dna.Neurons), p.config.Mconf.NeuronExpansion)
-	for i := 0; i < neuronsToAdd; i++ {
-		if len(neuronCandidates) == 0 {
-			break
-		}
-		if !p.mutationOccurs(p.config.Mconf.AddNeuron) {
-			continue
-		}
-
+	if len(neuronCandidates) >= 1 && p.mutationOccurs(p.config.Mconf.AddNeuron) {
 		// Randomly pick which neuron will be added.
-		// Then, remove that index from each list.
 		rndIndex := p.rnd.Intn(len(neuronCandidates))
 		neuronID := neuronCandidates[rndIndex]
 		dna.AddNeuron(neuronID, p.randomOp())
-		neuronCandidates = removeIndexFromIDSlice(neuronCandidates, rndIndex)
 
 		newID1, _ := p.source.Synapses.FindID(newSyn1[rndIndex].src, newSyn1[rndIndex].dst)
 		dna.AddSynapse(newID1)
-		newSyn1 = removeIndexFromSynSlice(newSyn1, rndIndex)
-
 		newID2, _ := p.source.Synapses.FindID(newSyn2[rndIndex].src, newSyn2[rndIndex].dst)
 		dna.AddSynapse(newID2)
-		newSyn2 = removeIndexFromSynSlice(newSyn2, rndIndex)
-
 		oldID, _ := p.source.Synapses.FindID(oldSyn[rndIndex].src, oldSyn[rndIndex].dst)
 		dna.RemoveSynapse(oldID)
-		oldSyn = removeIndexFromSynSlice(oldSyn, rndIndex)
 	}
 
 	synCandidates := make([]IDType, 0)
@@ -581,18 +566,8 @@ func (p *Playground) mutateDNAStructure(dna *DNA) {
 		}
 	}
 
-	synsToAdd := percentageOfWithMin1(len(dna.Synpases.idMap), p.config.Mconf.SynapseExpansion)
-	for i := 0; i < synsToAdd; i++ {
-		if len(synCandidates) == 0 {
-			break
-		}
-		if !p.mutationOccurs(p.config.Mconf.AddSynapse) {
-			continue
-		}
-
-		rndIndex := p.rnd.Intn(len(synCandidates))
-		dna.AddSynapse(synCandidates[rndIndex])
-		synCandidates = removeIndexFromIDSlice(synCandidates, rndIndex)
+	if len(synCandidates) >= 1 && p.mutationOccurs(p.config.Mconf.AddSynapse) {
+		dna.AddSynapse(synCandidates[p.rnd.Intn(len(synCandidates))])
 	}
 }
 
