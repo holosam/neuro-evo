@@ -3,19 +3,20 @@ package env
 import (
 	"hackathon/sam/evolve/neuron"
 	"math/rand"
+	"strings"
 	"time"
 )
 
 func DefaultStockConfig() neuron.RunnerConfig {
 	return neuron.RunnerConfig{
-		Generations: 300,
-		Rounds:      5,
+		Generations: 1000,
+		Rounds:      10,
 
 		PConf: neuron.PlaygroundConfig{
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 1000,
+			NumVariants: 3000,
 
 			Mconf: neuron.MutationConfig{
 				NeuronExpansion:  0.1,
@@ -117,6 +118,93 @@ func StockSimulation() {
 		d.stockValues[0] = neuron.MaxSignal() / 2
 		return d
 	}
+	runner := neuron.NewRunner(config)
+	runner.Run()
+}
+
+type RomanNumeral struct {
+	input  int
+	output []rune
+	isOver bool
+}
+
+func (r *RomanNumeral) CurrentState() []neuron.SignalType {
+	r.isOver = true
+	return []neuron.SignalType{neuron.SignalType(r.input >> 8), neuron.SignalType(r.input % 256)}
+}
+
+func (r *RomanNumeral) Update(signals []neuron.SignalType) {
+	for _, sig := range signals {
+		if sig > 0 {
+			r.output = append(r.output, rune(sig))
+		}
+	}
+}
+
+func (r *RomanNumeral) IsOver() bool {
+	return r.isOver
+}
+
+func (r *RomanNumeral) Fitness() neuron.ScoreType {
+	answer := []rune(convert(r.input))
+	score := 0
+
+	for i, char := range answer {
+		if len(r.output) > i {
+			diff := int(char - r.output[i])
+			score += diff * diff
+		} else {
+			score += 256 * 256
+		}
+	}
+
+	return -neuron.ScoreType(score)
+}
+
+func convert(input int) string {
+	conversions := []struct {
+		val  int
+		char string
+	}{
+		{1000, "M"},
+		{900, "CM"},
+		{500, "D"},
+		{400, "CD"},
+		{100, "C"},
+		{90, "XC"},
+		{50, "L"},
+		{40, "XL"},
+		{10, "X"},
+		{9, "IX"},
+		{5, "V"},
+		{4, "IV"},
+		{1, "I"},
+	}
+
+	var sb strings.Builder
+	for _, conversion := range conversions {
+		for input >= conversion.val {
+			sb.WriteString(conversion.char)
+			input -= conversion.val
+		}
+	}
+	return sb.String()
+}
+
+func RomanNumeralConverter() {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	config := DefaultStockConfig()
+	config.PConf.NumInputs = 2
+	config.PConf.NumOutputs = 15
+	config.NewGameFn = func() neuron.Game {
+		r := &RomanNumeral{
+			input:  rng.Intn(3999),
+			output: make([]rune, 0),
+		}
+		return r
+	}
+
 	runner := neuron.NewRunner(config)
 	runner.Run()
 }

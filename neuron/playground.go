@@ -275,6 +275,13 @@ func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType
 		return newCodes
 	}
 
+	// The highest scoring variant of each species with more than 5 variants gets
+	// directly copied to the next generation.
+	if len(species.scores) >= 5 && numOffspring >= 5 {
+		newCodes[numOffspring-1] = p.codes[species.scores[0].id].DeepCopy()
+		numOffspring--
+	}
+
 	for id := 0; id < numOffspring; id++ {
 		// fmt.Printf("-Making offspring %d\n", id)
 		scoreIndices := make(IDSet, p.config.Econf.Parents)

@@ -2,6 +2,7 @@ package env
 
 import (
 	"hackathon/sam/evolve/neuron"
+	"math"
 	"testing"
 )
 
@@ -49,5 +50,48 @@ func TestUpdateBoughtSold(t *testing.T) {
 
 func TestDayTrader(t *testing.T) {
 	StockSimulation()
-	t.Errorf("always error for now")
+	t.Errorf("always error to read logs")
+}
+
+func TestRomanNumeralConversion(t *testing.T) {
+	testcases := []struct {
+		input  int
+		output string
+	}{
+		{0, ""},
+		{1, "I"},
+		{4, "IV"},
+		{39, "XXXIX"},
+		{246, "CCXLVI"},
+		{789, "DCCLXXXIX"},
+		{1009, "MIX"},
+		{2421, "MMCDXXI"},
+		{3888, "MMMDCCCLXXXVIII"},
+	}
+
+	for _, testcase := range testcases {
+		r := RomanNumeral{
+			input: testcase.input,
+		}
+		if got, want := convert(testcase.input), testcase.output; got != want {
+			t.Errorf("Got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestRomanNumeralFitness(t *testing.T) {
+	r := RomanNumeral{
+		input:  246,
+		output: []rune{'C', 'C', 'X', 'M', 'T'},
+	}
+	expected := neuron.ScoreType(math.MaxInt32 - (1 + 4 + 65536))
+
+	if got := r.Fitness(); got != expected {
+		t.Errorf("Got %v, want %v", got, expected)
+	}
+}
+
+func TestNumeralConversion(t *testing.T) {
+	RomanNumeralConverter()
+	t.Errorf("always error to read logs")
 }

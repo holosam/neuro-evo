@@ -167,6 +167,13 @@ func TestSnippetEditing(t *testing.T) {
 	}
 }
 
+func TestDeepCopy(t *testing.T) {
+	d := SimpleTestDNA()
+	if got, want := d.DeepCopy().PrettyPrint(), d.PrettyPrint(); got != want {
+		t.Errorf("Got %s, want %s", got, want)
+	}
+}
+
 func TestDNAPrettyPrint(t *testing.T) {
 	want := "0 (V0) = op2 <0> [2]\n1 (V1) = op2 <0> [2]\n2 (M0) = op2\n"
 	if got := SimpleTestDNA().PrettyPrint(); got != want {
@@ -251,7 +258,7 @@ func TestCircularBrainFiring(t *testing.T) {
 
 	b := Flourish(d)
 	got := b.Fire([]SignalType{1, 2})
-	if want := []SignalType{0}; !reflect.DeepEqual(got, want) {
+	if want := []SignalType{}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }

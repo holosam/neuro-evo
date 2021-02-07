@@ -240,15 +240,25 @@ func TestReproduction(t *testing.T) {
 			{id: 1, score: 400},
 			{id: 2, score: 300},
 			{id: 3, score: 100},
+			{id: 4, score: 200},
+			{id: 5, score: 1000},
+			{id: 6, score: 300},
+			{id: 7, score: 100},
 		},
 	}
 
-	newCodes := p.reproduction(species, 2)
-	if got, want := len(newCodes), 2; got != want {
+	numOffspring := 6
+	newCodes := p.reproduction(species, numOffspring)
+	if got, want := len(newCodes), numOffspring; got != want {
 		t.Errorf("Got %v, want %v", got, want)
 	}
-	// The variant with score 100 dies off.
-	if got, want := species.Size(), 3; got != want {
+	// The best id (5) should be directly copied.
+	if got, want := newCodes[numOffspring-1].PrettyPrint(), p.codes[5].PrettyPrint(); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	// The variants with the lowest scores (100) die off.
+	if got, want := species.Size(), 6; got != want {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 }
@@ -279,9 +289,9 @@ func TestShiftConglomerate(t *testing.T) {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 
-	// The nextID will be +2 because of the new inter neuron, then +1 because of
+	// The nextID will be +1 because of the new inter neuron, then +4 because of
 	// the new synapse being added.
-	if got, want := p.source.Synapses.nextID, nextIDBefore+1+2; got != want {
+	if got, want := p.source.Synapses.nextID, nextIDBefore+1+4; got != want {
 		t.Errorf("Got %v, want %v", got, want)
 	}
 }

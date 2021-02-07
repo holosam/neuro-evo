@@ -2,6 +2,7 @@ package neuron
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -70,19 +71,19 @@ func (r *Runner) runGeneration() {
 		for id := 0; id < r.play.config.NumVariants; id++ {
 			go r.gameSimulation(id, resChan)
 		}
-	}
 
-	// Wait for all the results to come in.
-	for i := 0; i < r.play.config.NumVariants*r.config.Rounds; i++ {
-		result := <-resChan
-		results[result.id].id = result.id
-		results[result.id].score += result.score
+		// Wait for all the results to come in.
+		for i := 0; i < r.play.config.NumVariants; i++ {
+			result := <-resChan
+			results[result.id].id = result.id
+			results[result.id].score += result.score
+		}
 	}
 
 	// ------------- just for printing
 	maxResult := BrainScore{
 		id:    -1,
-		score: -1,
+		score: -math.MaxInt32,
 	}
 	for _, result := range results {
 		if result.score > maxResult.score {
@@ -93,6 +94,12 @@ func (r *Runner) runGeneration() {
 	// go r.gameSimulation(maxResult.id, resChan)
 	// result := <-resChan
 	fmt.Printf("Winner of generation:\n%sEnded with %d score\n\n", bestDNA.PrettyPrint(), maxResult.score)
+
+	// Only for roman numerals.
+	if maxResult.score == ScoreType(0) {
+		fmt.Printf("We have a winner!")
+		return
+	}
 	// ------------- just for printing
 
 	r.play.Evolve(results)

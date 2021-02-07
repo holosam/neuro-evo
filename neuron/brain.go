@@ -158,6 +158,7 @@ func (s *SynapseTracker) DeepCopy() *SynapseTracker {
 	}
 
 	for neuronID, synIDs := range s.srcMap {
+		dst.srcMap[neuronID] = make(IDSet, len(synIDs))
 		for synID := range synIDs {
 			dst.srcMap[neuronID][synID] = member
 		}
