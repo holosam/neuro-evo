@@ -115,7 +115,7 @@ func TestRomanNumeralFitness(t *testing.T) {
 		input:  246,
 		output: []rune{'C', 'C', 'X', 'M', 'T'},
 	}
-	expected := neuron.ScoreType(-(1 + 4 + 65536))
+	expected := neuron.ScoreType(256*256*7 - 1 - 4 - 256*256)
 
 	if got := r.Fitness(); got != expected {
 		t.Errorf("Got %v, want %v", got, expected)
@@ -124,5 +124,37 @@ func TestRomanNumeralFitness(t *testing.T) {
 
 func TestNumeralConversion(t *testing.T) {
 	RomanNumeralConverter()
+	t.Errorf("always error to read logs")
+}
+
+func TestServerUptime(t *testing.T) {
+	h := &HealthChecker{}
+
+	h.Update([][]neuron.SignalType{{5, 10, 10}})
+	if got, want := h.second, 25; got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	// Server goes down at 313.
+	h.Update([][]neuron.SignalType{{188, 100}})
+	if got, want := h.recovery, true; got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	// Server recovers for 5 seconds.
+	h.Update([][]neuron.SignalType{{3}})
+	if got, want := h.countdown, 2; got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+
+	// Recovery is over and the server is back up.
+	h.Update([][]neuron.SignalType{{3}})
+	if got, want := h.Fitness(), neuron.ScoreType(310); got != want {
+		t.Errorf("Got %v, want %v", got, want)
+	}
+}
+
+func TestRunHealthChecker(t *testing.T) {
+	RunHealthChecker()
 	t.Errorf("always error to read logs")
 }

@@ -22,9 +22,6 @@ type EvolutionConfig struct {
 }
 
 type MutationConfig struct {
-	// NeuronExpansion  float32
-	// SynapseExpansion float32
-
 	AddNeuron  float32
 	AddSynapse float32
 

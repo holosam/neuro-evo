@@ -16,7 +16,7 @@ func (t *testGame) CurrentState() [][]SignalType {
 
 func (t *testGame) Update(signals [][]SignalType) {
 	t.turn++
-	if len(signals[0]) > 0 {
+	if len(signals) > 0 && len(signals[0]) > 0 {
 		t.score += ScoreType(signals[0][0])
 	}
 }

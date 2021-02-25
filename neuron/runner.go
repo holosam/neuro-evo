@@ -55,6 +55,7 @@ func NewRunner(config RunnerConfig) *Runner {
 }
 
 func (r *Runner) Run() {
+	fmt.Printf("Beginning run with config: %+v\n", r.config)
 	r.play.InitDNA()
 	for gen := 0; gen < r.config.Generations; gen++ {
 		fmt.Printf("\nGeneration #%d, starting at %v\n", gen, time.Now())
@@ -97,8 +98,9 @@ func (r *Runner) runGeneration() bool {
 	// result := <-resChan
 	fmt.Printf("Winner of generation:\n%sEnded with %d score\n\n", bestDNA.PrettyPrint(), maxResult.score)
 
-	// if maxResult.score == ScoreType(0) { // For roman numerals.
-	if int(maxResult.score) == 256*256*r.config.Rounds { // For the adder.
+	// if maxResult.score == ScoreType(256*256*7*r.config.Rounds) { // For roman numerals.
+	// if int(maxResult.score) == ScoreType(256*256*r.config.Rounds) { // For the adder.
+	if maxResult.score == ScoreType(86400*r.config.Rounds) { // For the healthchecker (not actually possible).
 		fmt.Printf("We have a winner!")
 		return true
 	}

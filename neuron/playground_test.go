@@ -54,6 +54,14 @@ func createTestPlayConfig() PlaygroundConfig {
 
 		NumVariants: 10,
 
+		Econf: EvolutionConfig{
+			Parents:                 2,
+			BottomTierPercent:       0.25,
+			DistanceThreshold:       0.2,
+			DistanceEdgeFactor:      0.8,
+			DistanceOperationFactor: 0.2,
+		},
+
 		Mconf: MutationConfig{
 			AddNeuron:  1.0,
 			AddSynapse: 1.0,
@@ -61,14 +69,6 @@ func createTestPlayConfig() PlaygroundConfig {
 			ChangeOp:  0.5,
 			SetSeed:   0.5,
 			UnsetSeed: 0.5,
-		},
-
-		Econf: EvolutionConfig{
-			Parents:                 2,
-			BottomTierPercent:       0.25,
-			DistanceThreshold:       0.2,
-			DistanceEdgeFactor:      0.8,
-			DistanceOperationFactor: 0.2,
 		},
 	}
 }
