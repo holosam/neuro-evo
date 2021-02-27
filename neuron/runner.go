@@ -27,13 +27,6 @@ type Game interface {
 // factory method/constructor to generate new games.
 type NewGameFunc func() Game
 
-type BrainScore struct {
-	// The ID is included in this struct since it's passed on channels and
-	// sorted, so the score needs to travel with the ID.
-	id    IDType
-	score ScoreType
-}
-
 type RunnerConfig struct {
 	Generations int
 	Rounds      int

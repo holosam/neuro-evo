@@ -19,45 +19,39 @@ func MaxSignal() SignalType {
 type OperatorType int
 
 const (
-	AND      OperatorType = iota
-	NAND                  // 1
-	OR                    // 2
-	NOR                   // 3
-	XOR                   // 4
-	IFF                   // 5
-	ADD                   // 6
-	MULTIPLY              // 7
-	GCF                   // 8
-	MAX                   // 9
-	MIN                   // 10
-	TRUTH                 // 11
-	FALSIFY               // 12
+	AND OperatorType = iota
+	NAND
+	OR
+	NOR
+	XOR
+	IFF
+	ADD
+	MULTIPLY
+	GCF
+	MAX
+	MIN
+	TRUTH
+	FALSIFY
 )
 
+// NumOps is the total number of OperatorTypes, used to pick one randomly.
 const NumOps = 13
 
-func applyToAll(sigs []SignalType, operateFn func(a, b SignalType) SignalType) SignalType {
-	x := sigs[0]
-	for i := 1; i < len(sigs); i++ {
-		x = operateFn(x, sigs[i])
-	}
-	return x
-}
-
-func (op OperatorType) operate(sigs []SignalType) SignalType {
+// Operate performs the operation on a series of inputs.
+func (op OperatorType) Operate(sigs []SignalType) SignalType {
 	switch op {
 	case AND:
 		return applyToAll(sigs, func(a, b SignalType) SignalType { return a & b })
 	case NAND:
-		return ^AND.operate(sigs)
+		return ^AND.Operate(sigs)
 	case OR:
 		return applyToAll(sigs, func(a, b SignalType) SignalType { return a | b })
 	case NOR:
-		return ^OR.operate(sigs)
+		return ^OR.Operate(sigs)
 	case XOR:
 		return applyToAll(sigs, func(a, b SignalType) SignalType { return a ^ b })
 	case IFF:
-		return ^XOR.operate(sigs)
+		return ^XOR.Operate(sigs)
 	case ADD:
 		return applyToAll(sigs, func(a, b SignalType) SignalType { return a + b })
 	case MULTIPLY:
@@ -95,7 +89,16 @@ func (op OperatorType) operate(sigs []SignalType) SignalType {
 	}
 }
 
-func interpretOp(x int) OperatorType {
+func applyToAll(sigs []SignalType, operateFn func(a, b SignalType) SignalType) SignalType {
+	x := sigs[0]
+	for i := 1; i < len(sigs); i++ {
+		x = operateFn(x, sigs[i])
+	}
+	return x
+}
+
+// InterpretOp converts an int to its corresponding OperatorType.
+func InterpretOp(x int) OperatorType {
 	return [...]OperatorType{AND, NAND, OR, NOR, XOR, IFF, ADD, MULTIPLY, GCF, MAX, MIN, TRUTH, FALSIFY}[x]
 }
 
@@ -110,60 +113,79 @@ type IDSet = map[IDType]void
 
 var member void
 
+// NeuronType is an enum for neuron specializations.
 type NeuronType int
 
 const (
+	// SENSE neurons represent the visual cortex, which accept external inputs.
 	SENSE NeuronType = iota
+	// INTER neurons make up the bulk of the processing power within the brain.
 	INTER
+	// MOTOR neurons give results as output.
 	MOTOR
 )
 
-var neuronTypes = []NeuronType{SENSE, INTER, MOTOR}
+// NeuronTypes holds all possible enum values for looping.
+var NeuronTypes = []NeuronType{SENSE, INTER, MOTOR}
 
+// Neuron is the base struct of this entire project. It performs a simple
+// operation on its inputs and gives one output.
 type Neuron struct {
-	op OperatorType
+	Op OperatorType
 
-	hasSeed bool
-	seed    SignalType
+	HasSeed bool
+	Seed    SignalType
 }
 
+// NewNeuron inits a neuron from an operation.
 func NewNeuron(op OperatorType) *Neuron {
 	return &Neuron{
-		op:      op,
-		hasSeed: false,
-		seed:    0,
+		Op:      op,
+		HasSeed: false,
+		Seed:    0,
 	}
 }
 
+// SetSeed accepts a seed value that will be used as an input to every Fire().
 func (n *Neuron) SetSeed(seed SignalType) {
-	n.seed = seed
-	n.hasSeed = true
+	n.Seed = seed
+	n.HasSeed = true
 }
 
+// RemoveSeed doesn't actually change the Seed variable since the value will
+// only be respected if HasSeed is true.
 func (n *Neuron) RemoveSeed() {
-	n.hasSeed = false
+	n.HasSeed = false
 }
 
+// Copy returns a copy of this Neuron's fields in a different pointer.
 func (n *Neuron) Copy() *Neuron {
 	return &Neuron{
-		op:      n.op,
-		hasSeed: n.hasSeed,
-		seed:    n.seed,
+		Op:      n.Op,
+		HasSeed: n.HasSeed,
+		Seed:    n.Seed,
 	}
 }
 
-func (a *Neuron) IsEqual(b *Neuron) bool {
-	return a.op == b.op && a.hasSeed == b.hasSeed && a.seed == b.seed
+// IsEquiv returns if all the Neuron fields are equivalent, even if the two
+// pointers differ. If they both don't have seeds set, then it doesn't matter
+// what value in the Seed field.
+func (n *Neuron) IsEquiv(other *Neuron) bool {
+	return n.Op == other.Op && n.HasSeed == other.HasSeed &&
+		(!n.HasSeed || (n.HasSeed && n.Seed == other.Seed))
 }
 
+// Fire runs the Neuron's operation on all the inputs, including the Seed.
 func (n *Neuron) Fire(inputs []SignalType) SignalType {
-	// Seed inputs are "sticky" so they come back for every trigger.
-	if n.hasSeed {
-		inputs = append(inputs, n.seed)
+	// Seed inputs are "sticky" so they come back for every trigger even when the
+	// rest of the inputs gets cleared.
+	if n.HasSeed {
+		inputs = append(inputs, n.Seed)
 	}
-	return n.op.operate(inputs)
+	return n.Op.Operate(inputs)
 }
 
+// Synapse is a simple representation of a connection between two Neurons.
 type Synapse struct {
 	src IDType
 	dst IDType

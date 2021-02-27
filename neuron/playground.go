@@ -44,6 +44,13 @@ type PlaygroundConfig struct {
 	Mconf MutationConfig
 }
 
+type BrainScore struct {
+	// The ID is included in this struct since it's passed on channels and
+	// sorted, so the score needs to travel with the ID.
+	id    IDType
+	score ScoreType
+}
+
 type Species struct {
 	rep     *DNA
 	scores  []BrainScore
@@ -78,7 +85,7 @@ func (p *Playground) InitDNA() {
 	for id := 0; id < p.config.NumVariants; id++ {
 		dna := NewDNA(p.source)
 
-		for _, nType := range neuronTypes {
+		for _, nType := range NeuronTypes {
 			for i := 0; i < p.source.NeuronIDs[nType].Length(); i++ {
 				dna.AddNeuron(p.source.NeuronIDs[nType].GetId(i), OR)
 			}
@@ -206,7 +213,7 @@ func (p *Playground) dnaDistance(a, b *DNA) float32 {
 			// If the src and dst neuron for this edge match, then count it.
 			// This will naturally double count neurons, however it keeps with the
 			// theme of computing genome distance based on edges.
-			if a.Neurons[syn.src].IsEqual(b.Neurons[syn.src]) && a.Neurons[syn.dst].IsEqual(b.Neurons[syn.dst]) {
+			if a.Neurons[syn.src].IsEquiv(b.Neurons[syn.src]) && a.Neurons[syn.dst].IsEquiv(b.Neurons[syn.dst]) {
 				matchingOperations++
 			}
 		}
@@ -571,11 +578,8 @@ func (p *Playground) mutateDNAStructure(dna *DNA) {
 func (p *Playground) mutateNeurons(dna *DNA) {
 	for _, neuron := range dna.Neurons {
 		if p.mutationOccurs(p.config.Mconf.ChangeOp) {
-			neuron.op = p.randomOp()
+			neuron.Op = p.randomOp()
 		}
-
-		// Consider just making seeds 0 or MaxSignal?
-		// Like I don't really see how adding 168 is going to be helpful
 
 		if p.mutationOccurs(p.config.Mconf.SetSeed) {
 			neuron.SetSeed(SignalType(p.rnd.Intn(int(MaxSignal()))))
@@ -590,7 +594,7 @@ func (p *Playground) mutationOccurs(chance float32) bool {
 }
 
 func (p *Playground) randomOp() OperatorType {
-	return interpretOp(p.rnd.Intn(NumOps))
+	return InterpretOp(p.rnd.Intn(NumOps))
 }
 
 func geneChance(scores []BrainScore) []float32 {

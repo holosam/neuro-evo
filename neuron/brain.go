@@ -7,11 +7,17 @@ import (
 	"strings"
 )
 
+// IndexedIDs is a way of tracking IDs in numerical order. Neurons IDs are
+// unique regardless of the type, so it's useful to be able to reference, for
+// example, the "first" vision neuron even when its IDs don't start at zero.
+// The indices are always 0 to N, so when an ID is removed, all the following
+// indices shift down by one.
 type IndexedIDs struct {
 	IDToIndex map[IDType]int
 	IndexToID map[int]IDType
 }
 
+// NewIndexedIDs initializes a new struct.
 func NewIndexedIDs() *IndexedIDs {
 	return &IndexedIDs{
 		IDToIndex: make(map[IDType]int),
@@ -19,6 +25,8 @@ func NewIndexedIDs() *IndexedIDs {
 	}
 }
 
+// InsertID adds a new ID at the end of the ordered set, and returns the index
+// of the newly added ID.
 func (x *IndexedIDs) InsertID(id IDType) int {
 	if x.HasID(id) {
 		log.Fatalf("Indexed IDs already has %d", id)
@@ -30,6 +38,8 @@ func (x *IndexedIDs) InsertID(id IDType) int {
 	return nextIndex
 }
 
+// RemoveID finds the ID and removes it out of the order, and shifts the
+// remaining IDs down one to maintain indices of 0 to N.
 func (x *IndexedIDs) RemoveID(id IDType) {
 	index, exists := x.IDToIndex[id]
 	if !exists {
@@ -47,28 +57,28 @@ func (x *IndexedIDs) RemoveID(id IDType) {
 	delete(x.IndexToID, length-1)
 }
 
+// HasID returns true if the input ID is being tracked.
 func (x *IndexedIDs) HasID(id IDType) bool {
 	_, ok := x.IDToIndex[id]
 	return ok
 }
 
-func (x *IndexedIDs) HasIndex(index int) bool {
-	_, ok := x.IndexToID[index]
-	return ok
-}
-
+// GetIndex returns the index of the input ID.
 func (x *IndexedIDs) GetIndex(id IDType) int {
 	return x.IDToIndex[id]
 }
 
-func (x *IndexedIDs) GetId(index int) IDType {
+// GetID returns the ID at the input index.
+func (x *IndexedIDs) GetID(index int) IDType {
 	return x.IndexToID[index]
 }
 
+// Length is the number of IDs that are being tracked.
 func (x *IndexedIDs) Length() int {
 	return len(x.IDToIndex)
 }
 
+// Copy makes a deep copy of the maps and returns a pointer to a new struct.
 func (x *IndexedIDs) Copy() *IndexedIDs {
 	c := &IndexedIDs{
 		IDToIndex: make(map[IDType]int, x.Length()),
@@ -81,6 +91,9 @@ func (x *IndexedIDs) Copy() *IndexedIDs {
 	return c
 }
 
+// SynapseTracker holds the all the synapses (connections) in a brain.
+// The fields are conveniences for referencing the synapses either by the
+// source neuron, or by the ID of the synapse itself.
 type SynapseTracker struct {
 	// map[synID] -> Synapse
 	idMap map[IDType]Synapse
@@ -89,6 +102,7 @@ type SynapseTracker struct {
 	nextID IDType
 }
 
+// NewSynapseTracker inits a new struct that can be added to.
 func NewSynapseTracker() *SynapseTracker {
 	return &SynapseTracker{
 		idMap:  make(map[IDType]Synapse),
@@ -97,10 +111,8 @@ func NewSynapseTracker() *SynapseTracker {
 	}
 }
 
-func (s *SynapseTracker) AddNewSynapse(src, dst IDType) IDType {
-	return s.TrackSynapse(s.nextID, src, dst)
-}
-
+// TrackSynapse adds a new synapse to the map fields so it can easily be
+// referenced later.
 func (s *SynapseTracker) TrackSynapse(synID, src, dst IDType) IDType {
 	syn := Synapse{
 		src: src,
@@ -113,12 +125,19 @@ func (s *SynapseTracker) TrackSynapse(synID, src, dst IDType) IDType {
 	}
 	s.srcMap[src][synID] = member
 
+	// Update the nextID to always be an unused number.
 	if synID >= s.nextID {
 		s.nextID = synID + 1
 	}
 	return synID
 }
 
+// AddNewSynapse tracks a synapse at the next available ID number.
+func (s *SynapseTracker) AddNewSynapse(src, dst IDType) IDType {
+	return s.TrackSynapse(s.nextID, src, dst)
+}
+
+// RemoveSynapse takes an ID un-tracks the associated synapse.
 func (s *SynapseTracker) RemoveSynapse(id IDType) {
 	syn := s.idMap[id]
 	delete(s.srcMap[syn.src], id)
@@ -128,6 +147,8 @@ func (s *SynapseTracker) RemoveSynapse(id IDType) {
 	delete(s.idMap, id)
 }
 
+// AllDsts returns a set of IDs containing each neuron ID that the input neuron
+// has connections to.
 func (s *SynapseTracker) AllDsts(src IDType) IDSet {
 	synIDs, ok := s.srcMap[src]
 	if !ok {
@@ -140,6 +161,8 @@ func (s *SynapseTracker) AllDsts(src IDType) IDSet {
 	return dsts
 }
 
+// FindID returns the synapse ID of the connection between the two input
+// neurons.
 func (s *SynapseTracker) FindID(src, dst IDType) (IDType, error) {
 	for synID := range s.srcMap[src] {
 		if s.idMap[synID].dst == dst {
@@ -150,6 +173,7 @@ func (s *SynapseTracker) FindID(src, dst IDType) (IDType, error) {
 	return 0, fmt.Errorf("non-existent synapse src=%d,dst=%d", src, dst)
 }
 
+// DeepCopy returns a copy of all the fields in a new struct.
 func (s *SynapseTracker) DeepCopy() *SynapseTracker {
 	dst := NewSynapseTracker()
 
@@ -168,22 +192,36 @@ func (s *SynapseTracker) DeepCopy() *SynapseTracker {
 	return dst
 }
 
+// Conglomerate represents the superset of many different brains.
+// The conglomerate is essentialy a brain itself (many neurons and synapses),
+// but it only holds the structure of the neurons without the ops and seeds.
+// Aligning brains (graphs) with each other is a very difficult problem,
+// especially when the structures get larger and continue diverging. So, the
+// purpose of having one Conglomerate for evolution is that during the
+// crossover step when brains "breed" children, their neurons and synapses are
+// superimposed on the Conglomerate so that it's always clear how their neurons
+// align with each other.
 type Conglomerate struct {
 	NeuronIDs map[NeuronType]*IndexedIDs
 	Synapses  *SynapseTracker
 }
 
+// NewConglomerate inits a new conglomerate struct that's ready to be added to.
 func NewConglomerate() *Conglomerate {
 	c := &Conglomerate{
-		NeuronIDs: make(map[NeuronType]*IndexedIDs, len(neuronTypes)),
+		NeuronIDs: make(map[NeuronType]*IndexedIDs, len(NeuronTypes)),
 		Synapses:  NewSynapseTracker(),
 	}
-	for _, nType := range neuronTypes {
+	for _, nType := range NeuronTypes {
 		c.NeuronIDs[nType] = NewIndexedIDs()
 	}
 	return c
 }
 
+// AddVisionAndMotor sets up the Congolmerate to with a certain number of
+// vision and motor neurons to match the expected number of inputs and outputs.
+// The number of inputs and outputs shouldn't change during the evolution
+// process.
 func (c *Conglomerate) AddVisionAndMotor(numInputs int, numOutputs int) {
 	id := 0
 	for ; id < numInputs; id++ {
@@ -198,6 +236,10 @@ func (c *Conglomerate) AddVisionAndMotor(numInputs int, numOutputs int) {
 	}
 }
 
+// AddInterNeuron adds a neuron along a synapse. This means that if neuron #1
+// has a synapse to neuron #2, then neuron #3 will be added in between 1 and 2,
+// creating synapses from 1->3 and 3->2, in addition to leaving the original
+// synapse from 1->2.
 func (c *Conglomerate) AddInterNeuron(synID IDType) IDType {
 	syn := c.Synapses.idMap[synID]
 	newID := c.NeuronIDs[SENSE].Length() + c.NeuronIDs[MOTOR].Length() + c.NeuronIDs[INTER].Length()
@@ -207,8 +249,9 @@ func (c *Conglomerate) AddInterNeuron(synID IDType) IDType {
 	return newID
 }
 
+// GetNeuronType returns the NeuronType of the input neuron ID.
 func (c *Conglomerate) GetNeuronType(id IDType) NeuronType {
-	for _, nType := range neuronTypes {
+	for _, nType := range NeuronTypes {
 		if c.NeuronIDs[nType].HasID(id) {
 			return nType
 		}
@@ -217,12 +260,18 @@ func (c *Conglomerate) GetNeuronType(id IDType) NeuronType {
 	return -1
 }
 
+// DNA references neurons and synapses which make up the genetic code of a
+// brain. The DNA is a subset of the Conglomerate, so it can never have neurons
+// or synapses that aren't in the Conglomerate. It also contains actual Neuron
+// references, which have ops and seeds.
 type DNA struct {
 	Source   *Conglomerate
 	Neurons  map[IDType]*Neuron
 	Synpases *SynapseTracker
 }
 
+// NewDNA initializes a new DNA struct, pointing to its source of IDs which is
+// a Conglomerate.
 func NewDNA(source *Conglomerate) *DNA {
 	return &DNA{
 		Source:   source,
@@ -258,20 +307,19 @@ func (d *DNA) RemoveSeed(id IDType) {
 
 func (src *DNA) DeepCopy() *DNA {
 	dst := NewDNA(src.Source)
-
 	for neuronID, neuron := range src.Neurons {
 		dst.Neurons[neuronID] = neuron.Copy()
 	}
-
 	dst.Synpases = src.Synpases.DeepCopy()
-
 	return dst
 }
 
+// PrettyPrint returns a formatted string of all neurons and synapses in the
+// DNA, which is useful for debugging.
 func (d *DNA) PrettyPrint() string {
 	var sb strings.Builder
 
-	for _, nType := range neuronTypes {
+	for _, nType := range NeuronTypes {
 		nTypeChar := "I"
 		if nType == SENSE {
 			nTypeChar = "V"
@@ -279,15 +327,15 @@ func (d *DNA) PrettyPrint() string {
 			nTypeChar = "M"
 		}
 		for index := 0; index < d.Source.NeuronIDs[nType].Length(); index++ {
-			neuronID := d.Source.NeuronIDs[nType].GetId(index)
+			neuronID := d.Source.NeuronIDs[nType].GetID(index)
 			neuron, ok := d.Neurons[neuronID]
 			if !ok {
 				continue
 			}
 
-			sb.WriteString(fmt.Sprintf("%d (%s%d) = op%d", neuronID, nTypeChar, index, neuron.op))
-			if neuron.hasSeed {
-				sb.WriteString(fmt.Sprintf(" <%d>", neuron.seed))
+			sb.WriteString(fmt.Sprintf("%d (%s%d) = op%d", neuronID, nTypeChar, index, neuron.Op))
+			if neuron.HasSeed {
+				sb.WriteString(fmt.Sprintf(" <%d>", neuron.Seed))
 			}
 
 			sortedDstIDs := make([]IDType, 0)
@@ -394,7 +442,7 @@ func (b *Brain) stepFunction() {
 
 	for neuronID, inputs := range b.pendingSignals {
 		numInputs := len(inputs)
-		if b.dna.Neurons[neuronID].hasSeed {
+		if b.dna.Neurons[neuronID].HasSeed {
 			numInputs++
 		}
 
