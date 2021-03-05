@@ -87,7 +87,7 @@ func (p *Playground) InitDNA() {
 
 		for _, nType := range NeuronTypes {
 			for i := 0; i < p.source.NeuronIDs[nType].Length(); i++ {
-				dna.AddNeuron(p.source.NeuronIDs[nType].GetId(i), OR)
+				dna.AddNeuron(p.source.NeuronIDs[nType].GetID(i), OR)
 			}
 		}
 		for synID := range p.source.Synapses.idMap {
@@ -321,7 +321,7 @@ func (p *Playground) createOffspring(parentScores []BrainScore) *DNA {
 
 	seenEdges := make(IDSet, p.source.Synapses.nextID)
 	for v := 0; v < p.source.NeuronIDs[SENSE].Length(); v++ {
-		visionID := p.source.NeuronIDs[SENSE].GetId(v)
+		visionID := p.source.NeuronIDs[SENSE].GetID(v)
 
 		// Add the vision neuron to the child first.
 		parentIndex := p.randomParentGene(parentScores)

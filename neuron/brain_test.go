@@ -42,7 +42,7 @@ func TestIndexedIDs(t *testing.T) {
 	if got, want := x.Length(), 2; got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if got, want := x.GetId(1), 10; got != want {
+	if got, want := x.GetID(1), 10; got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 	if got, want := x.GetIndex(10), 1; got != want {
@@ -222,10 +222,6 @@ func TestBrainFire(t *testing.T) {
 	if got, want := b.Fire([][]SignalType{{1}, {2}}), [][]SignalType{{3}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-
-	fmt.Printf("pending signals: %+v\n", b.pendingSignals)
-
-	t.Errorf("error for logs")
 }
 
 // Create a circular brain that won't ever output to test if Fire will

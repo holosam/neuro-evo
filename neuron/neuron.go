@@ -106,12 +106,13 @@ func InterpretOp(x int) OperatorType {
 // be distingushed from normal int values.
 type IDType = int
 
-type void struct{}
+// Void is an empty struct to help turn a map into a set.
+type Void struct{}
 
 // IDSet is a set of ids. An insert looks like `set[id] = member`
-type IDSet = map[IDType]void
+type IDSet = map[IDType]Void
 
-var member void
+var member Void
 
 // NeuronType is an enum for neuron specializations.
 type NeuronType int
@@ -185,7 +186,7 @@ func (n *Neuron) Fire(inputs []SignalType) SignalType {
 	return n.Op.Operate(inputs)
 }
 
-// Synapse is a simple representation of a connection between two Neurons.
+// Synapse is a simple representation of a neuron -> neuron connection.
 type Synapse struct {
 	src IDType
 	dst IDType

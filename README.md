@@ -1,9 +1,7 @@
-
-
 To deploy:
-1) Build binary
+1) Build binary for ubuntu
 	$ cd ~/src/hackathon
-	$ env GOOS=linux GOARCH=amd64 go build  (builds it for ubuntu)
+	$ env GOOS=linux GOARCH=amd64 go build
 2) Copy binary to droplet
 	- sign in to digitalocean.com
 	- copy external IP address of the droplet

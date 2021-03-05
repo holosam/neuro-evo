@@ -398,7 +398,7 @@ func (b *Brain) Fire(inputs [][]SignalType) [][]SignalType {
 				// more input will be coming on this action.
 				inputSignal = NullRune
 			}
-			b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetId(visionIndex), inputSignal)
+			b.addPendingSignal(b.dna.Source.NeuronIDs[SENSE].GetID(visionIndex), inputSignal)
 		}
 		inputStringIndex++
 
