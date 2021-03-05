@@ -10,14 +10,14 @@ type testGame struct {
 	score ScoreType
 }
 
-func (t *testGame) CurrentState() []SignalType {
-	return []SignalType{SignalType(t.turn), SignalType(t.turn + 1)}
+func (t *testGame) CurrentState() [][]SignalType {
+	return [][]SignalType{{SignalType(t.turn)}, {SignalType(t.turn + 1)}}
 }
 
-func (t *testGame) Update(signals []SignalType) {
+func (t *testGame) Update(signals [][]SignalType) {
 	t.turn++
-	if len(signals) > 0 {
-		t.score += ScoreType(signals[0])
+	if len(signals) > 0 && len(signals[0]) > 0 {
+		t.score += ScoreType(signals[0][0])
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 )
 
 func testOperator(t *testing.T, op OperatorType, inputs []SignalType, want SignalType) {
-	if got := op.operate(inputs); got != want {
+	if got := op.Operate(inputs); got != want {
 		t.Errorf("Got wrong value for op %d: inputs %v, got %d, want %d", op, inputs, got, want)
 	}
 }
@@ -31,11 +31,11 @@ func TestOperators(t *testing.T) {
 func TestCommutative(t *testing.T) {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for opVal := 0; opVal < NumOps; opVal++ {
-		op := interpretOp(opVal)
+		op := InterpretOp(opVal)
 		for i := 0; i < 100; i++ {
 			r1 := SignalType(rnd.Intn(int(MaxSignal())))
 			r2 := SignalType(rnd.Intn(int(MaxSignal())))
-			if op.operate([]SignalType{r1, r2}) != op.operate([]SignalType{r2, r1}) {
+			if op.Operate([]SignalType{r1, r2}) != op.Operate([]SignalType{r2, r1}) {
 				t.Errorf("Op %d is not commutative for %d and %d", opVal, r1, r2)
 			}
 		}
@@ -45,17 +45,36 @@ func TestCommutative(t *testing.T) {
 func TestAssociative(t *testing.T) {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for opVal := 0; opVal < NumOps; opVal++ {
-		op := interpretOp(opVal)
+		op := InterpretOp(opVal)
 		for i := 0; i < 50; i++ {
 			r1 := SignalType(rnd.Intn(int(MaxSignal())))
 			r2 := SignalType(rnd.Intn(int(MaxSignal())))
 			r3 := SignalType(rnd.Intn(int(MaxSignal())))
-			v1 := op.operate([]SignalType{r1, r2, r3})
-			v2 := op.operate([]SignalType{r2, r3, r1})
+			v1 := op.Operate([]SignalType{r1, r2, r3})
+			v2 := op.Operate([]SignalType{r2, r3, r1})
 			if v1 != v2 {
 				t.Errorf("Op %v is not associative for [%d, %d, %d], got %d vs %d", op, r1, r2, r3, v1, v2)
 			}
 		}
+	}
+}
+
+func TestNeuronCopying(t *testing.T) {
+	a := NewNeuron(ADD)
+	a.SetSeed(1)
+	b := a.Copy()
+	if a == b {
+		t.Errorf("Pointers should not be equal")
+	}
+	if !a.IsEquiv(b) {
+		t.Errorf("Neuron values should be equivalent")
+	}
+
+	b.SetSeed(2)
+	b.RemoveSeed()
+	a.RemoveSeed()
+	if !a.IsEquiv(b) {
+		t.Errorf("Neuron values should still be equivalent")
 	}
 }
 

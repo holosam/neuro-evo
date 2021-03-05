@@ -42,7 +42,7 @@ func TestIndexedIDs(t *testing.T) {
 	if got, want := x.Length(), 2; got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
-	if got, want := x.GetId(1), 10; got != want {
+	if got, want := x.GetID(1), 10; got != want {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 	if got, want := x.GetIndex(10), 1; got != want {
@@ -167,6 +167,13 @@ func TestSnippetEditing(t *testing.T) {
 	}
 }
 
+func TestDeepCopy(t *testing.T) {
+	d := SimpleTestDNA()
+	if got, want := d.DeepCopy().PrettyPrint(), d.PrettyPrint(); got != want {
+		t.Errorf("Got %s, want %s", got, want)
+	}
+}
+
 func TestDNAPrettyPrint(t *testing.T) {
 	want := "0 (V0) = op2 <0> [2]\n1 (V1) = op2 <0> [2]\n2 (M0) = op2\n"
 	if got := SimpleTestDNA().PrettyPrint(); got != want {
@@ -195,10 +202,7 @@ func TestBrainStep(t *testing.T) {
 		t.Errorf("Want %v, got %v", wantMap, b.pendingSignals)
 	}
 
-	isDone := b.stepFunction()
-	if want, got := false, isDone; want != got {
-		t.Errorf("Want %v, got %v", want, got)
-	}
+	b.stepFunction()
 
 	delete(wantMap, 0)
 	wantMap[1] = []SignalType{3}
@@ -215,7 +219,7 @@ func TestBrainStep(t *testing.T) {
 
 func TestBrainFire(t *testing.T) {
 	b := Flourish(SimpleTestDNA())
-	if got, want := b.Fire([]SignalType{1, 2}), []SignalType{3}; !reflect.DeepEqual(got, want) {
+	if got, want := b.Fire([][]SignalType{{1}, {2}}), [][]SignalType{{3}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }
@@ -250,8 +254,8 @@ func TestCircularBrainFiring(t *testing.T) {
 	fmt.Printf("Circular brain: %s\n", d.PrettyPrint())
 
 	b := Flourish(d)
-	got := b.Fire([]SignalType{1, 2})
-	if want := []SignalType{0}; !reflect.DeepEqual(got, want) {
+	got := b.Fire([][]SignalType{{1}, {2}})
+	if want := [][]SignalType{{}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Want %v, got %v", want, got)
 	}
 }

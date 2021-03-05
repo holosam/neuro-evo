@@ -22,9 +22,6 @@ type EvolutionConfig struct {
 }
 
 type MutationConfig struct {
-	NeuronExpansion  float32
-	SynapseExpansion float32
-
 	AddNeuron  float32
 	AddSynapse float32
 
@@ -45,6 +42,13 @@ type PlaygroundConfig struct {
 	Econf EvolutionConfig
 	// Gconf GenerationConfig
 	Mconf MutationConfig
+}
+
+type BrainScore struct {
+	// The ID is included in this struct since it's passed on channels and
+	// sorted, so the score needs to travel with the ID.
+	id    IDType
+	score ScoreType
 }
 
 type Species struct {
@@ -81,9 +85,9 @@ func (p *Playground) InitDNA() {
 	for id := 0; id < p.config.NumVariants; id++ {
 		dna := NewDNA(p.source)
 
-		for _, nType := range neuronTypes {
+		for _, nType := range NeuronTypes {
 			for i := 0; i < p.source.NeuronIDs[nType].Length(); i++ {
-				dna.AddNeuron(p.source.NeuronIDs[nType].GetId(i), OR)
+				dna.AddNeuron(p.source.NeuronIDs[nType].GetID(i), OR)
 			}
 		}
 		for synID := range p.source.Synapses.idMap {
@@ -209,7 +213,7 @@ func (p *Playground) dnaDistance(a, b *DNA) float32 {
 			// If the src and dst neuron for this edge match, then count it.
 			// This will naturally double count neurons, however it keeps with the
 			// theme of computing genome distance based on edges.
-			if a.Neurons[syn.src].IsEqual(b.Neurons[syn.src]) && a.Neurons[syn.dst].IsEqual(b.Neurons[syn.dst]) {
+			if a.Neurons[syn.src].IsEquiv(b.Neurons[syn.src]) && a.Neurons[syn.dst].IsEquiv(b.Neurons[syn.dst]) {
 				matchingOperations++
 			}
 		}
@@ -275,6 +279,13 @@ func (p *Playground) reproduction(species *Species, numOffspring int) map[IDType
 		return newCodes
 	}
 
+	// The highest scoring variant of each species with more than 5 variants gets
+	// directly copied to the next generation.
+	if len(species.scores) >= 5 && numOffspring >= 5 {
+		newCodes[numOffspring-1] = p.codes[species.scores[0].id].DeepCopy()
+		numOffspring--
+	}
+
 	for id := 0; id < numOffspring; id++ {
 		// fmt.Printf("-Making offspring %d\n", id)
 		scoreIndices := make(IDSet, p.config.Econf.Parents)
@@ -310,7 +321,7 @@ func (p *Playground) createOffspring(parentScores []BrainScore) *DNA {
 
 	seenEdges := make(IDSet, p.source.Synapses.nextID)
 	for v := 0; v < p.source.NeuronIDs[SENSE].Length(); v++ {
-		visionID := p.source.NeuronIDs[SENSE].GetId(v)
+		visionID := p.source.NeuronIDs[SENSE].GetID(v)
 
 		// Add the vision neuron to the child first.
 		parentIndex := p.randomParentGene(parentScores)
@@ -393,7 +404,7 @@ func (p *Playground) traverseEdges(neuronID IDType, parentScores []BrainScore, c
 func (p *Playground) shiftConglomerate() {
 	// Increase the number of neurons by the expansion percentage.
 	// neuronsToAdd := percentageOfWithMin1(p.source.NeuronIDs[INTER].Length(), p.config.Mconf.NeuronExpansion)
-	neuronsToAdd := 1
+	neuronsToAdd := int(math.Ceil(math.Log10(float64(p.source.NeuronIDs[INTER].Length() + 2))))
 	for i := 0; i < neuronsToAdd; i++ {
 		// Okay to add a neuron on the same synapse more than once.
 		synID := p.rnd.Intn(p.source.Synapses.nextID)
@@ -403,7 +414,7 @@ func (p *Playground) shiftConglomerate() {
 
 	// Increase the number of synapses by the expansion percentage.
 	// newSynapses := percentageOfWithMin1(p.source.Synapses.nextID, p.config.Mconf.SynapseExpansion)
-	newSynapses := 4
+	newSynapses := int(math.Ceil(math.Log10(float64(p.source.Synapses.nextID + 10))))
 
 	// Repurpose newSynapses to also represent an approximate clump size, so
 	// new synapses are generally created with pretty close srcs and dsts.
@@ -530,33 +541,18 @@ func (p *Playground) mutateDNAStructure(dna *DNA) {
 		}
 	}
 
-	neuronsToAdd := percentageOfWithMin1(len(dna.Neurons), p.config.Mconf.NeuronExpansion)
-	for i := 0; i < neuronsToAdd; i++ {
-		if len(neuronCandidates) == 0 {
-			break
-		}
-		if !p.mutationOccurs(p.config.Mconf.AddNeuron) {
-			continue
-		}
-
+	if len(neuronCandidates) >= 1 && p.mutationOccurs(p.config.Mconf.AddNeuron) {
 		// Randomly pick which neuron will be added.
-		// Then, remove that index from each list.
 		rndIndex := p.rnd.Intn(len(neuronCandidates))
 		neuronID := neuronCandidates[rndIndex]
 		dna.AddNeuron(neuronID, p.randomOp())
-		neuronCandidates = removeIndexFromIDSlice(neuronCandidates, rndIndex)
 
 		newID1, _ := p.source.Synapses.FindID(newSyn1[rndIndex].src, newSyn1[rndIndex].dst)
 		dna.AddSynapse(newID1)
-		newSyn1 = removeIndexFromSynSlice(newSyn1, rndIndex)
-
 		newID2, _ := p.source.Synapses.FindID(newSyn2[rndIndex].src, newSyn2[rndIndex].dst)
 		dna.AddSynapse(newID2)
-		newSyn2 = removeIndexFromSynSlice(newSyn2, rndIndex)
-
 		oldID, _ := p.source.Synapses.FindID(oldSyn[rndIndex].src, oldSyn[rndIndex].dst)
 		dna.RemoveSynapse(oldID)
-		oldSyn = removeIndexFromSynSlice(oldSyn, rndIndex)
 	}
 
 	synCandidates := make([]IDType, 0)
@@ -574,29 +570,16 @@ func (p *Playground) mutateDNAStructure(dna *DNA) {
 		}
 	}
 
-	synsToAdd := percentageOfWithMin1(len(dna.Synpases.idMap), p.config.Mconf.SynapseExpansion)
-	for i := 0; i < synsToAdd; i++ {
-		if len(synCandidates) == 0 {
-			break
-		}
-		if !p.mutationOccurs(p.config.Mconf.AddSynapse) {
-			continue
-		}
-
-		rndIndex := p.rnd.Intn(len(synCandidates))
-		dna.AddSynapse(synCandidates[rndIndex])
-		synCandidates = removeIndexFromIDSlice(synCandidates, rndIndex)
+	if len(synCandidates) >= 1 && p.mutationOccurs(p.config.Mconf.AddSynapse) {
+		dna.AddSynapse(synCandidates[p.rnd.Intn(len(synCandidates))])
 	}
 }
 
 func (p *Playground) mutateNeurons(dna *DNA) {
 	for _, neuron := range dna.Neurons {
 		if p.mutationOccurs(p.config.Mconf.ChangeOp) {
-			neuron.op = p.randomOp()
+			neuron.Op = p.randomOp()
 		}
-
-		// Consider just making seeds 0 or MaxSignal?
-		// Like I don't really see how adding 168 is going to be helpful
 
 		if p.mutationOccurs(p.config.Mconf.SetSeed) {
 			neuron.SetSeed(SignalType(p.rnd.Intn(int(MaxSignal()))))
@@ -611,7 +594,7 @@ func (p *Playground) mutationOccurs(chance float32) bool {
 }
 
 func (p *Playground) randomOp() OperatorType {
-	return interpretOp(p.rnd.Intn(NumOps))
+	return InterpretOp(p.rnd.Intn(NumOps))
 }
 
 func geneChance(scores []BrainScore) []float32 {
