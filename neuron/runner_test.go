@@ -46,7 +46,7 @@ func createTestRunner() *Runner {
 func TestRunGeneration(t *testing.T) {
 	runner := createTestRunner()
 	runner.play.InitDNA()
-	runner.runGeneration()
+	runner.runGeneration(0)
 }
 
 func TestGameSim(t *testing.T) {
