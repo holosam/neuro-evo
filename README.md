@@ -14,7 +14,7 @@ The speciation concept comes from [NEAT method](http://nn.cs.utexas.edu/download
 ### Deploy on Digital Ocean
 1) Build binary for ubuntu
 	```bash
-	$ cd ~/src/hackathon
+	$ cd ~/neuro-evo
 	$ env GOOS=linux GOARCH=amd64 go build
 	```
 2) Copy binary to droplet
