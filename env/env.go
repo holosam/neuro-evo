@@ -1,8 +1,6 @@
 package env
 
 import (
-	"flag"
-	"hackathon/sam/evolve/dynamo"
 	"hackathon/sam/evolve/neuron"
 	"math/rand"
 	"strings"
@@ -10,19 +8,15 @@ import (
 )
 
 func DefaultStockConfig() neuron.RunnerConfig {
-	dynPath := flag.String("dynamo_dir", "/Users/sammy/Desktop/dynamo/", "path to configs")
-	flag.Parse()
-	dynamo.DynDir = *dynPath
-
 	return neuron.RunnerConfig{
-		Generations: 10,
-		Rounds:      dynamo.Get("rounds", 10),
+		Generations: 1000,
+		Rounds:      10,
 
 		PConf: neuron.PlaygroundConfig{
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: dynamo.Get("variants", 10),
+			NumVariants: 2000,
 
 			Econf: neuron.EvolutionConfig{
 				Parents:           3,
