@@ -16,7 +16,7 @@ func DefaultStockConfig() neuron.RunnerConfig {
 			NumInputs:  1,
 			NumOutputs: 2,
 
-			NumVariants: 1000,
+			NumVariants: 2000,
 
 			Econf: neuron.EvolutionConfig{
 				Parents:           3,

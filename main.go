@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	env.RunHealthChecker()
+	env.RunAdder()
 }

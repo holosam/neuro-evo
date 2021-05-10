@@ -2,6 +2,7 @@ package neuron
 
 import (
 	"fmt"
+	"hackathon/sam/evolve/dynamo"
 	"math"
 	"time"
 )
@@ -52,13 +53,17 @@ func (r *Runner) Run() {
 	r.play.InitDNA()
 	for gen := 0; gen < r.config.Generations; gen++ {
 		fmt.Printf("\nGeneration #%d, starting at %v\n", gen, time.Now())
-		if r.runGeneration() {
+		if r.runGeneration(gen) {
 			break
 		}
 	}
+
+	dynScore := r.config.Generations * r.config.Rounds * r.play.config.NumVariants
+	dynamo.Record("evolve", dynScore)
+	fmt.Printf("Never found a winner :/\nDynamo result: %d\n", dynScore)
 }
 
-func (r *Runner) runGeneration() bool {
+func (r *Runner) runGeneration(gen int) bool {
 	results := make([]BrainScore, r.play.config.NumVariants)
 
 	resChan := make(chan BrainScore)
@@ -76,7 +81,7 @@ func (r *Runner) runGeneration() bool {
 		}
 	}
 
-	// <just for printing>
+	// If the max possible score has been reached, the simulation can end.
 	maxResult := BrainScore{
 		id:    -1,
 		score: -math.MaxInt32,
@@ -87,17 +92,16 @@ func (r *Runner) runGeneration() bool {
 		}
 	}
 	bestDNA := r.play.codes[maxResult.id]
-	// go r.gameSimulation(maxResult.id, resChan)
-	// result := <-resChan
 	fmt.Printf("Winner of generation:\n%sEnded with %d score\n\n", bestDNA.PrettyPrint(), maxResult.score)
 
-	// if maxResult.score == ScoreType(256*256*7*r.config.Rounds) { // For roman numerals.
-	// if int(maxResult.score) == ScoreType(256*256*r.config.Rounds) { // For the adder.
-	if maxResult.score == ScoreType(86400*r.config.Rounds) { // For the healthchecker (not actually possible).
-		fmt.Printf("We have a winner!")
+	// For roman numerals: r.config.Rounds*256*256*7
+	// For the healthchecker: r.config.Rounds*86400
+	if maxResult.score == ScoreType(r.config.Rounds*256*256) { // For the adder.
+		dynScore := gen * r.config.Rounds * r.play.config.NumVariants
+		dynamo.Record("evolve", dynScore)
+		fmt.Printf("We have a winner!\nDynamo result: %d\n", dynScore)
 		return true
 	}
-	// </just for printing>
 
 	r.play.Evolve(results)
 	return false
