@@ -5,9 +5,9 @@ Filename | Description
 -------- | -----------
 neuron.go | Performs mathematical operations on a series of input values.
 brain.go | DNA class which encodes a series of connected neurons.
-playground.go | Handles the speciation, reproduction, and mutation of Brains in one generation.
+playground.go | Handles the speciation, reproduction, and mutation of neural networks.
 runner.go | Runs the playground over many generations.
-env.go | Sets up the environment for the runner.
+env.go | Sets up the game environment to score each network.
 
 The speciation concept comes from [NEAT method](http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf) for neural net evolution, however the underlying neuron operations and evolution method are original. This evolution method involves keeping track of a "conglomerate" network, which is a superset of all the neurons from every genome. During the reproduction step, the networks can be overlaid on this conglomerate to match up the underlying genes.
 
